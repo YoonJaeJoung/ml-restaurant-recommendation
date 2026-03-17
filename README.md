@@ -1,5 +1,6 @@
-# noble-jaguars
-Github repository for final project of team noble jaguars of NYU Fundamentals of Machine Learning Course.
+# ML-Restaurant-Recommendation
+Github repository for final project of team Noble Jaguars of NYU Fundamentals of Machine Learning Course.
+Team: Ashley Ying, Jake Lipner, Langyue Zhao, Yiduo Lu, Yoonjae Andrew Joung
 
 # repo structure
 - venv/
