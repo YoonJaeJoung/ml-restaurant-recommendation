@@ -10,6 +10,15 @@ A one-page document covering three things:
 ## design document draft
 ### repo structure
 
+
 ### division of labor
+#### first two-weeks exploration
+- Lang yue -> specify the idea framework, design UI structure
+- Yiduo -> How to rank, personalization would work best
+- Ashely -> how to visualize the map, match restaurant location 
+- Yoonjae -> data exploration, if there is new dataset or scraping method
+- Jake -> catch up
 
 ### stub code
+[Repository Link](https://github.com/YoonJaeJoung/ml-restaurant-recommendation)
+
