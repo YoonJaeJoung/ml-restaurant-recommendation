@@ -28,13 +28,34 @@ We apply core ML algorithms from the course syllabus to natural language text da
 - **Online Learning** — Update the user profile using post-visit feedback to continuously improve recommendations.
 - **Logistic Regression (Supervised Ranking)** — Combine text similarity, aspect weights, historical relevance, and star ratings to rank final results.
 
+## Setup
+ 
+This project uses `uv` for dependency management. To set up the local environment:
+ 
+1. **Install `uv`** (if not already installed):
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+2. **Create a virtual environment**:
+   ```bash
+   uv venv
+   ```
+3. **Activate the environment**:
+   - macOS/Linux: `source .venv/bin/activate`
+   - Windows: `.venv\Scripts\activate`
+4. **Install dependencies**:
+   ```bash
+   uv pip install -r requirements.txt
+   ```
+ 
 ## Data Download Instructions
 
 The raw dataset used for this project (Google Local Reviews) is extremely large and therefore not tracked or uploaded through Git. Instead, you will need to download it directly.
 
 1. Navigate to the UCSD public dataset repository: [Google Local Reviews](https://mcauleylab.ucsd.edu/public_datasets/gdrive/googlelocal/)
-2. Download the desired state or category review JSON files (e.g., `review-New_York_10.json.gz`).
+2. Download the desired state or category review JSON files (e.g., `review-New_York.json.gz` and `meta-New_York.json.gz`).
 3. Place the downloaded files directly into the `data/raw/` directory in this repository.
+4. Run `python src/data_processing.py` (ensure your environment is activated) to filter the metadata for NYC restaurants and add borough information. The output will be saved to `data/processed/meta-NYC-restaurant.json.gz`.
 
 ## Repo Structure
 

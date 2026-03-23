@@ -1,1 +1,13 @@
 # ML Restaurant Recommendation - Dependencies
+pandas
+numpy
+scikit-learn
+sentence-transformers
+matplotlib
+seaborn
+ipykernel
+scipy
+pyarrow
+fastparquet
+streamlit
+pydeck
