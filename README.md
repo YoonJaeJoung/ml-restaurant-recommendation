@@ -74,12 +74,32 @@ After downloading and processing the raw data, the next step is converting textu
      - *Maximum limit*: Caps highly-reviewed restaurants to an upper bound of `500` reviews to balance the dataset footprint.
    - **Hardware Acceleration**: Automatically detects and leverages Apple Silicon (`mps`) GPU if accessible, which greatly cuts down processing time alongside proper `batch_size` (e.g., 32/64).
 
+## Merging Sharded Embeddings
+
+Because `review_embeddings.npy` can exceed GitHub single-file limits, review embeddings may be uploaded as shard files such as:
+
+- `data/processed/review_embeddings.part00.npy`
+- `data/processed/review_embeddings.part01.npy`
+- `data/processed/review_embeddings.part02.npy`
+
+To merge them back into one file locally:
+
+```bash
+python scripts/merge_embedding_shards.py --input-dir data/processed --prefix review_embeddings.part --output review_embeddings.npy
+```
+
+After running, merged output will be created at:
+
+- `data/processed/review_embeddings.npy`
+
 ## Repo Structure
 
 ```
 ml-restaurant-recommendation/
 ├── README.md                  # Project overview and documentation
 ├── requirements.txt           # Python dependencies
+├── scripts/                   # Utility scripts
+│   └── merge_embedding_shards.py  # Merge review embedding shards into one .npy
 ├── documents/                 # Project planning and documentation
 │   ├── writtenProposal.md     # Written proposal (problem + methods)
 │   ├── designDocument.md      # Design document (structure, labor, stubs)
