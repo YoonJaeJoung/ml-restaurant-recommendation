@@ -55,7 +55,7 @@ The raw dataset used for this project (Google Local Reviews) is extremely large 
 1. Navigate to the UCSD public dataset repository: [Google Local Reviews](https://mcauleylab.ucsd.edu/public_datasets/gdrive/googlelocal/)
 2. Download the desired state or category review JSON files (e.g., `review-New_York.json.gz` and `meta-New_York.json.gz`).
 3. Place the downloaded files directly into the `data/raw/` directory in this repository.
-4. Run `python src/data_processing.py` (ensure your environment is activated) to filter the metadata for NYC restaurants and add borough information. The output will be saved to `data/processed/meta-NYC-restaurant.json.gz`.
+4. Run `python src/0_data_processing.py` (ensure your environment is activated) to filter the metadata for NYC restaurants and add borough information. The output will be saved to `data/processed/meta-NYC-restaurant.json.gz`.
 
 ## Generating Embeddings
 
@@ -63,7 +63,7 @@ After downloading and processing the raw data, the next step is converting textu
 
 1. **Run the Embedding Script**:
    ```bash
-   python src/embedding.py
+   python src/1_embedding.py
    ```
 
    **Embedding Pipeline Details:**
@@ -92,6 +92,22 @@ After running, merged output will be created at:
 
 - `data/processed/review_embeddings.npy`
 
+## Semantic Search
+
+To test the semantic search capabilities locally, follow these two steps:
+
+1. **Filter Parquet Data**:
+   Run the following script to create a filtered version of the dataset required for the search:
+   ```bash
+   python src/2_filter_reivews.py
+   ```
+
+2. **Run Search Query**:
+   Execute the search test script. You can modify the query inside `3_search_test.py` directly to try different searches against the processed data:
+   ```bash
+   python src/3_search_test.py
+   ```
+
 ## Repo Structure
 
 ```
@@ -111,8 +127,10 @@ ml-restaurant-recommendation/
 ├── notebooks/                 # Jupyter notebooks for exploration and analysis
 │   └── exploration.ipynb      # Initial data exploration notebook
 ├── src/                       # Source code modules
-│   ├── data_processing.py     # Data loading, cleaning, and preprocessing
-│   ├── embedding.py           # Sentence embedding generation
+│   ├── 0_data_processing.py   # Data loading, cleaning, and preprocessing
+│   ├── 1_embedding.py         # Sentence embedding generation
+│   ├── 2_filter_reivews.py    # Filter review datasets
+│   ├── 3_search_test.py       # Local testing for semantic similarities
 │   ├── clustering.py          # K-Means / GMM clustering
 │   ├── similarity.py          # Cosine similarity and retrieval
 │   ├── ranking.py             # Supervised ranking model (logistic regression)
