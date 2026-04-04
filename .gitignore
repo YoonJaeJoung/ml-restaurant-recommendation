@@ -4,10 +4,6 @@ data/raw/*
 data/processed/*
 !data/processed/.gitkeep
 
-# Results
-results/*
-!results/.gitkeep
-
 # Python
 __pycache__/
 *.py[cod]
