@@ -68,7 +68,7 @@ After downloading and processing the raw data, the next step is converting textu
 
    **Embedding Pipeline Details:**
    - **Model**: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) (utilized for its asymmetric search capabilities: prepending "search_document" to corpus texts).
-   - **Truncation**: `max_seq_length = 256` tokens (effectively capturing ~200-word reviews). By clipping the model’s default 8192 context window, we massively accelerate computation and prevent OOM errors.
+   - **Truncation**: `max_seq_length = 256` tokens (effectively capturing ~200-word reviews). By clipping the model's default 8192 context window, we massively accelerate computation and prevent OOM errors.
    - **Filtering & Downsampling**:
      - *Minimum filter*: Excludes inactive restaurants with $\le 30$ reviews.
      - *Maximum limit*: Caps highly-reviewed restaurants to an upper bound of `500` reviews to balance the dataset footprint.
@@ -92,21 +92,95 @@ After running, merged output will be created at:
 
 - `data/processed/review_embeddings.npy`
 
-## Semantic Search
+## Semantic Search (Initial Test on Full Embeddings)
 
-To test the semantic search capabilities locally, follow these two steps:
+With the embeddings generated, we first tested semantic search directly on the full 768-dimensional vectors. This step filters the review dataset and runs cosine similarity between a user query and every review embedding.
 
 1. **Filter Parquet Data**:
-   Run the following script to create a filtered version of the dataset required for the search:
    ```bash
    python src/2_filter_reivews.py
    ```
-
-2. **Run Search Query**:
-   Execute the search test script. You can modify the query inside `3_search_test.py` directly to try different searches against the processed data:
+2. **Run Search Query on Full Embeddings**:
    ```bash
-   python src/3_search_test.py
+   python src/3_search_test_embedding.py
    ```
+   You can modify the query inside `3_search_test_embedding.py` to try different searches.
+
+While this produced correct results, operating on the full 768-d vectors across our dataset of ~3.7 million reviews was **extremely expensive**. The full embedding matrix (~5.4 GB) cannot be loaded entirely into RAM, so the search script uses memory-mapped files and processes similarity computation in batches (chunks of 50,000 reviews at a time), writing intermediate scores to disk-backed temporary storage. This results in significantly longer query times and heavy I/O overhead. This motivated the next step: dimensionality reduction via PCA.
+
+## PCA Dimensionality Reduction
+
+To address the high computational cost and memory demands of searching over full 768-dimensional embeddings, we applied **PCA (Principal Component Analysis)** to reduce the embedding vectors to a much smaller dimension. This is a **required step** before running the final search pipeline.
+
+Run the PCA script after generating or merging the embeddings:
+
+```bash
+python src/4_pca.py
+```
+
+**Configuration** (edit constants at the top of `src/4_pca.py`):
+
+| Parameter | Default | Description |
+|---|---|---|
+| `N_COMPONENTS` | `128` | Target dimensionality after reduction |
+| `CHUNK_SIZE` | `100,000` | Rows transformed per batch (controls peak RAM) |
+
+**Output files** (saved to `data/processed/`):
+
+| File | Description |
+|---|---|
+| `review_embeddings_pca.npy` | PCA-reduced review embeddings (N × 128) |
+| `meta_embeddings_pca.npy` | PCA-reduced metadata embeddings (M × 128) |
+| `pca_model.pkl` | Fitted `sklearn.decomposition.PCA` model |
+
+The fitted PCA model (`pca_model.pkl`) is saved so that **new queries can be projected into the same reduced space** at search time — no need to re-fit PCA when running the search.
+
+The script prints the total explained variance retained after reduction so you can verify that the compressed representation still captures the essential semantic information.
+
+## PCA Component-Count Evaluation
+
+To choose the optimal number of PCA components, we ran a systematic evaluation across **7 candidate values** (16, 32, 64, 128, 256, 384, 512). For each configuration the script:
+
+1. Fits PCA on the full 3.7M review embeddings.
+2. Runs 5 diverse benchmark queries in both the full 768-d space (baseline) and the PCA-reduced space.
+3. Measures **recall@10** (fraction of baseline top-10 restaurants recovered), **query latency**, and **explained variance**.
+
+```bash
+python src/4a_pca_evaluation.py
+```
+
+| n_components | Explained Var | Recall@10 | Speedup | Size | Composite |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| 16 | 58.3% | 10% | 194× | 229 MB | 0.452 |
+| 32 | 66.1% | 22% | 160× | 457 MB | 0.515 |
+| 64 | 74.9% | 38% | 151× | 915 MB | 0.595 |
+| **128** | **84.4%** | **54%** | **99×** | **1.8 GB** | **0.657** |
+| 256 | 93.5% | 48% | 50× | 3.7 GB | 0.555 |
+| 384 | 97.5% | 48% | 34× | 5.5 GB | 0.488 |
+| 512 | 99.2% | 50% | 20× | 7.3 GB | 0.433 |
+
+**Result:** `n_components = 128` achieves the best tradeoff — **84.4%** explained variance, the highest recall (**54%**), a **99× speedup** (0.6 s vs 60.6 s per query), and an **83% size reduction** (1.8 GB vs 10.9 GB). Notably, recall *peaks* at 128 and decreases for higher component counts, suggesting that moderate PCA regularization filters out noise in the embedding space.
+
+Detailed results and tradeoff plots are saved to `results/`:
+- `pca_evaluation_results.csv` / `.json` — full metrics table.
+- `pca_tradeoff_analysis.png` — four-panel chart (explained variance, accuracy vs. compression, latency, composite score).
+- `pca_scree_curve.png` — cumulative explained variance elbow curve.
+
+## Semantic Search (PCA-Reduced)
+
+With PCA-reduced embeddings in place, run the final search pipeline:
+
+1. **Filter Parquet Data** (if not already done above):
+   ```bash
+   python src/2_filter_reivews.py
+   ```
+2. **Run Search Query on PCA Embeddings**:
+   ```bash
+   python src/5_search_test_pca.py
+   ```
+   Modify the query inside `5_search_test_pca.py` to try different searches. The script loads the saved PCA model, projects the query embedding into the reduced space, and then computes cosine similarity against the PCA-reduced review embeddings.
+
+Compared to the full-embedding search, the PCA-based search is significantly faster and uses a fraction of the memory, making it practical for iterative experimentation and real-time queries.
 
 ## Repo Structure
 
@@ -124,13 +198,21 @@ ml-restaurant-recommendation/
 ├── data/                      # Data directory (not tracked in git)
 │   ├── raw/                   # Raw data files (e.g., Google Local Reviews JSON)
 │   └── processed/             # Cleaned and processed data
+│       ├── review_embeddings.npy          # Full 768-d review embeddings
+│       ├── meta_embeddings.npy            # Full 768-d metadata embeddings
+│       ├── review_embeddings_pca.npy      # PCA-reduced review embeddings
+│       ├── meta_embeddings_pca.npy        # PCA-reduced metadata embeddings
+│       └── pca_model.pkl                  # Fitted PCA model (for query projection)
 ├── notebooks/                 # Jupyter notebooks for exploration and analysis
 │   └── exploration.ipynb      # Initial data exploration notebook
 ├── src/                       # Source code modules
 │   ├── 0_data_processing.py   # Data loading, cleaning, and preprocessing
 │   ├── 1_embedding.py         # Sentence embedding generation
 │   ├── 2_filter_reivews.py    # Filter review datasets
-│   ├── 3_search_test.py       # Local testing for semantic similarities
+│   ├── 3_search_test_embedding.py  # Semantic search using full embeddings
+│   ├── 4_pca.py               # PCA dimensionality reduction on embeddings
+│   ├── 4a_pca_evaluation.py   # PCA component-count evaluation & tradeoff analysis
+│   ├── 5_search_test_pca.py   # Semantic search using PCA-reduced embeddings
 │   ├── clustering.py          # K-Means / GMM clustering
 │   ├── similarity.py          # Cosine similarity and retrieval
 │   ├── ranking.py             # Supervised ranking model (logistic regression)
