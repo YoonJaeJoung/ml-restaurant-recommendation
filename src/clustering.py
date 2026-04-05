@@ -74,7 +74,21 @@ def build_features_combined(meta_normed, restaurant_ids):
     agg["all_text"] = agg["all_text"].fillna("")
 
     # TF-IDF
-    vectorizer = TfidfVectorizer(max_features=500, min_df=5)
+    custom_stop_words = [
+        "good", "great", "nice", "delicious", "amazing", "excellent",
+        "bad", "food", "place", "restaurant", "came", "got", "went",
+        "time", "really", "just", "ordered", "staff", "service", "definitely",
+    ]
+    from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+    stop_words = list(ENGLISH_STOP_WORDS | set(custom_stop_words))
+
+    vectorizer = TfidfVectorizer(
+        max_features=500,
+        min_df=5,
+        max_df=0.3,
+        ngram_range=(1, 2),
+        stop_words=stop_words,
+    )
     tfidf_matrix = vectorizer.fit_transform(agg["all_text"]).toarray().astype(np.float32)
     tfidf_normed = normalize(tfidf_matrix, norm="l2")
 
@@ -85,6 +99,42 @@ def build_features_combined(meta_normed, restaurant_ids):
     return combined
 
 
+def build_category_onehot(restaurant_ids, min_count=50):
+    """Build category one-hot matrix aligned with restaurant_ids.
+
+    Each restaurant may have multiple categories (multi-label).
+    Only categories appearing in >= min_count restaurants are kept.
+    """
+    from sklearn.preprocessing import MultiLabelBinarizer
+
+    meta_df = pd.read_parquet(f"{DATA_DIR}/meta-NYC-restaurant.parquet",
+                              columns=["gmap_id", "category"])
+    meta_df = meta_df.drop_duplicates("gmap_id", keep="first")
+
+    # Align to restaurant_ids order
+    id_order = pd.DataFrame({"gmap_id": restaurant_ids, "_order": range(len(restaurant_ids))})
+    merged = id_order.merge(meta_df, on="gmap_id", how="left").sort_values("_order")
+    merged["category"] = merged["category"].apply(
+        lambda x: list(x) if x is not None and hasattr(x, '__iter__') else []
+    )
+
+    # Filter low-frequency categories
+    from collections import Counter
+    counter = Counter()
+    for cats in merged["category"]:
+        for c in cats:
+            counter[c] += 1
+    valid_cats = {c for c, cnt in counter.items() if cnt >= min_count}
+    merged["category"] = merged["category"].apply(
+        lambda cats: [c for c in cats if c in valid_cats]
+    )
+
+    mlb = MultiLabelBinarizer()
+    onehot = mlb.fit_transform(merged["category"]).astype(np.float32)
+    print(f"Category one-hot: {onehot.shape[1]} categories (min_count={min_count})")
+    return onehot
+
+
 def run_experiments(meta_normed, combined):
     """Run PCA, UMAP, and clustering experiments (KMeans + GMM) across feature sets."""
     from sklearn.decomposition import PCA
@@ -93,7 +143,7 @@ def run_experiments(meta_normed, combined):
     from sklearn.metrics import silhouette_score
     import os
 
-    os.makedirs("results", exist_ok=True)
+    os.makedirs("results/clustering", exist_ok=True)
 
     # Step 1: PCA to 100 dimensions
     print("Running PCA...")
@@ -143,7 +193,7 @@ def run_experiments(meta_normed, combined):
 
     # Step 4: Save results
     df = pd.DataFrame(results)
-    df.to_csv("results/clustering_scores.csv", index=False)
+    df.to_csv("results/clustering/clustering_scores.csv", index=False)
 
     print("\n=== Best result per scheme ===")
     summary = df.loc[df.groupby("scheme")["silhouette"].idxmax()]
@@ -163,7 +213,7 @@ def visualize_results(df_scores, best_labels):
     import matplotlib.pyplot as plt
     import os
 
-    os.makedirs("results", exist_ok=True)
+    os.makedirs("results/clustering", exist_ok=True)
 
     umap_2d = np.load(f"{DATA_DIR}/umap_2d.npy")
 
@@ -184,9 +234,9 @@ def visualize_results(df_scores, best_labels):
 
     plt.suptitle("NYC Restaurant Clustering - UMAP Visualization", fontsize=15, y=1.01)
     plt.tight_layout()
-    plt.savefig("results/cluster_comparison_umap.png", dpi=150, bbox_inches="tight")
+    plt.savefig("results/clustering/cluster_comparison_umap.png", dpi=150, bbox_inches="tight")
     plt.close()
-    print("Saved: results/cluster_comparison_umap.png")
+    print("Saved: results/clustering/cluster_comparison_umap.png")
 
     # === Plot 2: Silhouette vs K line chart ===
     fig2, ax2 = plt.subplots(figsize=(10, 6))
@@ -208,9 +258,9 @@ def visualize_results(df_scores, best_labels):
     ax2.legend(fontsize=10)
     ax2.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig("results/silhouette_vs_k.png", dpi=150, bbox_inches="tight")
+    plt.savefig("results/clustering/silhouette_vs_k.png", dpi=150, bbox_inches="tight")
     plt.close()
-    print("Saved: results/silhouette_vs_k.png")
+    print("Saved: results/clustering/silhouette_vs_k.png")
 
     # === Plot 3: Cluster size distribution for best scheme ===
     best_scheme = "combined+kmeans"
@@ -230,9 +280,9 @@ def visualize_results(df_scores, best_labels):
         ax3.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 5,
                  str(val), ha="center", va="bottom", fontsize=8)
     plt.tight_layout()
-    plt.savefig("results/best_cluster_distribution.png", dpi=150, bbox_inches="tight")
+    plt.savefig("results/clustering/best_cluster_distribution.png", dpi=150, bbox_inches="tight")
     plt.close()
-    print("Saved: results/best_cluster_distribution.png")
+    print("Saved: results/clustering/best_cluster_distribution.png")
 
 
 if __name__ == "__main__":
@@ -243,13 +293,12 @@ if __name__ == "__main__":
     combined_path = f"{DATA_DIR}/features_combined.npy"
     ids_path = f"{DATA_DIR}/restaurant_ids.json"
 
-    if os.path.exists(meta_path) and os.path.exists(combined_path) and os.path.exists(ids_path):
-        print("=== Loading pre-built features ===")
+    if os.path.exists(meta_path) and os.path.exists(ids_path):
+        print("=== Loading pre-built meta features ===")
         meta_normed = np.load(meta_path)
-        combined = np.load(combined_path)
         with open(ids_path) as f:
             restaurant_ids = json.load(f)
-        print(f"features_meta: {meta_normed.shape}, features_combined: {combined.shape}, ids: {len(restaurant_ids)}")
+        print(f"features_meta: {meta_normed.shape}, ids: {len(restaurant_ids)}")
     else:
         print("=== Step 1: Restore filtered meta_df ===")
         meta_df = restore_filtered_meta()
@@ -259,21 +308,64 @@ if __name__ == "__main__":
         print("\n=== Step 2: Build features_meta (pure meta embedding) ===")
         meta_normed = build_features_meta()
 
-        print("\n=== Step 3: Build features_combined (meta + TF-IDF) ===")
-        combined = build_features_combined(meta_normed, restaurant_ids)
+    print("\n=== Step 3: Rebuild features_combined (meta + TF-IDF) ===")
+    combined = build_features_combined(meta_normed, restaurant_ids)
 
-    # Skip re-running experiments if labels already exist
-    scores_path = "results/clustering_scores.csv"
+    print("\n=== Step 4: Build category one-hot and combined_cat features ===")
+    cat_onehot = build_category_onehot(restaurant_ids, min_count=50)
+    combined_cat = np.hstack([combined, cat_onehot])
+    np.save(f"{DATA_DIR}/features_combined_cat.npy", combined_cat)
+    print(f"features_combined_cat shape: {combined_cat.shape}")
+
+    print("\n=== Step 5: Run clustering experiments (all schemes) ===")
+    scores_path = "results/clustering/clustering_scores.csv"
     schemes = ["meta+kmeans", "meta+gmm", "combined+kmeans", "combined+gmm"]
-    labels_exist = all(os.path.exists(f"{DATA_DIR}/labels_{s}.npy") for s in schemes)
+    df_scores, best_labels = run_experiments(meta_normed, combined)
 
-    if os.path.exists(scores_path) and labels_exist:
-        print("\n=== Loading cached clustering results ===")
-        df_scores = pd.read_csv(scores_path)
-        best_labels = {s: np.load(f"{DATA_DIR}/labels_{s}.npy") for s in schemes}
-    else:
-        print("\n=== Step 4: Run clustering experiments ===")
-        df_scores, best_labels = run_experiments(meta_normed, combined)
+    print("\n=== Step 6: Run combined_cat+kmeans extended k search ===")
+    from sklearn.decomposition import PCA
+    from sklearn.cluster import KMeans
+    from sklearn.metrics import silhouette_score
 
-    print("\n=== Step 5: Visualize results ===")
+    pca_combined_cat = PCA(n_components=100, random_state=42).fit_transform(combined_cat)
+    print(f"PCA done: combined_cat -> {pca_combined_cat.shape}")
+
+    k_values_ext = [25, 30, 40, 50, 60, 75, 100, 125, 150]
+    cat_results = []
+    best_score_cat = -1
+    best_labels_cat = None
+
+    for k in k_values_ext:
+        model = KMeans(n_clusters=k, random_state=42, n_init=10)
+        labels = model.fit_predict(pca_combined_cat)
+        score = silhouette_score(pca_combined_cat, labels, sample_size=3000, random_state=42)
+        cat_results.append({"scheme": "combined_cat+kmeans", "k": k, "silhouette": round(score, 4)})
+        print(f"  k={k}: silhouette={score:.4f}")
+        if score > best_score_cat:
+            best_score_cat = score
+            best_labels_cat = labels.copy()
+
+    # Also run combined+kmeans on same k range for direct comparison
+    pca_combined = PCA(n_components=100, random_state=42).fit_transform(combined)
+    nocategory_results = []
+    for k in k_values_ext:
+        model = KMeans(n_clusters=k, random_state=42, n_init=10)
+        labels = model.fit_predict(pca_combined)
+        score = silhouette_score(pca_combined, labels, sample_size=3000, random_state=42)
+        nocategory_results.append({"scheme": "combined+kmeans", "k": k, "silhouette": round(score, 4)})
+
+    print("\n=== Comparison: combined+kmeans vs combined_cat+kmeans ===")
+    print(f"{'k':>5}  {'combined+kmeans':>16}  {'combined_cat+kmeans':>20}  {'diff':>8}")
+    for nc, wc in zip(nocategory_results, cat_results):
+        diff = wc["silhouette"] - nc["silhouette"]
+        print(f"{nc['k']:>5}  {nc['silhouette']:>16.4f}  {wc['silhouette']:>20.4f}  {diff:>+8.4f}")
+
+    # Save extended results
+    all_cat_results = pd.DataFrame(cat_results + nocategory_results)
+    all_cat_results.to_csv("results/clustering/clustering_scores_extended.csv", index=False)
+
+    np.save(f"{DATA_DIR}/labels_combined_cat+kmeans.npy", best_labels_cat)
+    print(f"\nBest combined_cat+kmeans: k={cat_results[cat_results.index(max(cat_results, key=lambda x: x['silhouette']))]}")
+
+    print("\n=== Step 7: Visualize results ===")
     visualize_results(df_scores, best_labels)

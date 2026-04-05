@@ -166,6 +166,72 @@ Detailed results and tradeoff plots are saved to `results/`:
 - `pca_tradeoff_analysis.png` — four-panel chart (explained variance, accuracy vs. compression, latency, composite score).
 - `pca_scree_curve.png` — cumulative explained variance elbow curve.
 
+## Clustering
+
+To enable efficient semantic search and restaurant grouping, we applied K-Means clustering on a combined feature representation of each restaurant.
+
+### Feature Construction
+
+Each restaurant is represented by a **combined feature vector**:
+- **Meta embedding**: 768-dimensional nomic-embed-text-v1.5 vector from restaurant metadata
+- **TF-IDF review keywords**: extracted from aggregated user reviews per restaurant
+
+TF-IDF hyperparameters (optimized through systematic evaluation):
+
+| Parameter | Value | Reason |
+|---|---|---|
+| `max_features` | 500 | Keep top 500 most informative terms |
+| `min_df` | 5 | Term must appear in at least 5 restaurants |
+| `max_df` | 0.3 | Filter terms appearing in >30% of restaurants |
+| `ngram_range` | (1, 2) | Capture phrases like "fried chicken", "bubble tea" |
+| `stop_words` | English + custom | Remove generic words: good, great, nice, delicious, amazing, excellent, bad, food, place, restaurant, came, got, went, time, really, just, ordered, staff, service, definitely |
+
+Both feature sets are L2-normalized and concatenated, then reduced to **100 dimensions via PCA** before clustering.
+
+### Experiment & Model Selection
+
+We ran a full grid search across 4 schemes × 9 k values:
+- **Schemes**: meta+kmeans, meta+gmm, combined+kmeans, combined+gmm
+- **k values**: [5, 8, 10, 15, 20, 25, 30, 40, 50]
+- **Evaluation metric**: Silhouette Score (sampled 3,000 restaurants)
+
+**Results summary:**
+
+| Scheme | Best k | Silhouette Score |
+|---|---|---|
+| meta+kmeans | 40 | 0.1128 |
+| meta+gmm | 50 | 0.0985 |
+| combined+gmm | 50 | 0.2241 |
+| **combined+kmeans** | **50** | **0.2691** |
+
+**Selected model: combined+kmeans, k=50**
+- Silhouette score: **0.2691** (+82% vs initial TF-IDF parameters)
+- Optimized TF-IDF parameters significantly improved cluster quality by removing generic evaluation words and enabling bigram features
+
+### Running Clustering
+```bash
+python src/clustering.py
+```
+
+### Output Files
+
+All clustering outputs are saved to `results/clustering/`:
+
+| File | Description |
+|---|---|
+| `restaurant_clusters.csv` | Cluster label (0–49) for each restaurant, with name, borough, coordinates, avg_rating |
+| `cluster_summary.json` | Per-cluster summary: size, avg_rating, top_borough, top 10 TF-IDF keywords, sample restaurants |
+| `cluster_centroids.npy` | Shape (50, 768) — mean meta embedding vector per cluster, used by semantic search for fast cluster matching |
+| `clustering_scores.csv` | Silhouette scores for all 36 experiments |
+| `cluster_visualization.html` | Interactive 2D scatter plot (PCA), hover shows restaurant name, cluster, keywords, borough |
+| `silhouette_vs_k.png` | Silhouette score vs k curve for all schemes |
+| `best_cluster_distribution.png` | Cluster size distribution for the winning model |
+| `cluster_comparison_umap.png` | UMAP visualization comparing clustering schemes |
+
+### How Clustering Enables Efficient Search
+
+At query time, the user's input is first matched to its nearest cluster centroid (using `cluster_centroids.npy`), then similarity search is conducted **only within that cluster** — reducing the search space by ~50× compared to full-corpus search.
+
 ## Semantic Search (PCA-Reduced)
 
 With PCA-reduced embeddings in place, run the final search pipeline:
@@ -204,7 +270,8 @@ ml-restaurant-recommendation/
 │       ├── meta_embeddings_pca.npy        # PCA-reduced metadata embeddings
 │       └── pca_model.pkl                  # Fitted PCA model (for query projection)
 ├── notebooks/                 # Jupyter notebooks for exploration and analysis
-│   └── exploration.ipynb      # Initial data exploration notebook
+│   ├── exploration.ipynb      # Initial data exploration notebook
+│   └── clustering_analysis.ipynb  # Clustering results analysis and visualization
 ├── src/                       # Source code modules
 │   ├── 0_data_processing.py   # Data loading, cleaning, and preprocessing
 │   ├── 1_embedding.py         # Sentence embedding generation
@@ -220,4 +287,16 @@ ml-restaurant-recommendation/
 │   ├── evaluation.py          # Model evaluation metrics and utilities
 │   └── app.py                 # Interactive application / map overlay interface
 └── results/                   # Output results, figures, and model artifacts
+    ├── clustering/            # Clustering outputs
+    │   ├── restaurant_clusters.csv        # Cluster label for each restaurant
+    │   ├── cluster_summary.json           # Per-cluster keywords and statistics
+    │   ├── cluster_centroids.npy          # Mean embedding per cluster (50, 768)
+    │   ├── clustering_scores.csv          # Silhouette scores for all 36 experiments
+    │   ├── clustering_scores_extended.csv # Extended experiment results
+    │   ├── cluster_visualization.html     # Interactive 2D scatter plot
+    │   ├── silhouette_vs_k.png            # Silhouette score vs k curve
+    │   ├── best_cluster_distribution.png  # Cluster size distribution
+    │   ├── cluster_comparison_umap.png    # UMAP visualization
+    │   └── cluster_rating_size.png        # Cluster rating vs size plot
+    └── review_analysis_report.csv         # Review data analysis report
 ```
