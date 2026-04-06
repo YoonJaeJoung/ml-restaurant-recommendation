@@ -248,6 +248,8 @@ With PCA-reduced embeddings in place, run the final search pipeline:
 
 Compared to the full-embedding search, the PCA-based search is significantly faster and uses a fraction of the memory, making it practical for iterative experimentation and real-time queries.
 
+## Interactive Map
+
 ## Repo Structure
 
 ```
