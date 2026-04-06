@@ -11,3 +11,10 @@ pyarrow
 fastparquet
 streamlit
 pydeck
+# for map
+folium
+plotly
+dash>=2.14.0
+dash-leaflet
+pandas
+numpy
