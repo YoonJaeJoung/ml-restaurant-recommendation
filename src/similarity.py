@@ -196,21 +196,48 @@ def search_pca(
     results = aggregate_to_restaurants(top_reviews, meta_df, top_n=top_n)
     return results
 
-"""" 
-Sample query to run in terminal: 
-python -c "
-import pandas as pd
-import numpy as np
-from src.similarity import load_model, search_within_clusters
+def search_pca_within_clusters(
+    query: str,
+    model: SentenceTransformer,
+    pca,
+    review_embeddings_pca: np.ndarray,
+    reviews_df: pd.DataFrame,
+    meta_df: pd.DataFrame,
+    centroids: np.ndarray,
+    restaurant_clusters: pd.DataFrame,
+    top_n_clusters: int = 3,
+    k: int = 50,
+    top_n: int = 10
+) -> pd.DataFrame:
+    """
+    Best of both worlds: cluster filtering + PCA-reduced search.
+    First narrows to top_n_clusters, then searches in 128-dim PCA space.
+    """
+    query_embedding = embed_query(query, model)
+    
+    # Stage 1: find best clusters using full 768-dim query
+    best_clusters = find_best_cluster(query_embedding, centroids, top_n_clusters)
+    print(f"Searching clusters: {best_clusters}")
+    
+    # Stage 2: filter reviews to those clusters
+    mask = restaurant_clusters["cluster"].isin(best_clusters)
+    relevant_gmap_ids = set(restaurant_clusters[mask]["gmap_id"])
+    relevant_mask = reviews_df["gmap_id"].isin(relevant_gmap_ids)
+    relevant_reviews = reviews_df[relevant_mask].copy()
+    relevant_indices = np.where(relevant_mask)[0]
+    relevant_embeddings_pca = review_embeddings_pca[relevant_indices]
+    
+    print(f"Searching {len(relevant_reviews)} reviews across {len(relevant_gmap_ids)} restaurants")
+    
+    # Stage 3: project query to PCA space and search
+    query_pca = pca.transform(query_embedding).astype('float32')
+    scores = cosine_similarity(query_pca, relevant_embeddings_pca)[0]
+    top_k = min(k, len(scores))
+    top_indices = np.argsort(scores)[::-1][:top_k]
+    
+    top_reviews = relevant_reviews.iloc[top_indices].copy()
+    top_reviews["similarity_score"] = scores[top_indices]
+    
+    results = aggregate_to_restaurants(top_reviews, meta_df, top_n=top_n)
+    return results
 
-reviews = pd.read_parquet('data/processed/review-NYC-restaurant-filtered.parquet')
-meta = pd.read_parquet('data/processed/meta-NYC-restaurant.parquet')
-embeddings = np.load('data/processed/review_embeddings.npy', mmap_mode='r')
-centroids = np.load('results/clustering/cluster_centroids.npy')
-clusters = pd.read_csv('results/clustering/restaurant_clusters.csv')
-
-model = load_model()
-results = search_within_clusters('cozy italian restaurant for a date night', model, embeddings, reviews, meta, centroids, clusters)
-print(results)
-" 
-"""
