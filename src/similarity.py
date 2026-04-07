@@ -240,4 +240,24 @@ def search_pca_within_clusters(
     
     results = aggregate_to_restaurants(top_reviews, meta_df, top_n=top_n)
     return results
+    
+"""
+To test search_pca_within_clusters:
 
+python -c "
+import pandas as pd
+import numpy as np
+from src.similarity import load_model, load_pca_model, search_pca_within_clusters
+
+reviews = pd.read_parquet('data/processed/review-NYC-restaurant-filtered.parquet')
+meta = pd.read_parquet('data/processed/meta-NYC-restaurant.parquet')
+embeddings_pca = np.load('data/processed/review_embeddings_pca.npy', mmap_mode='r')
+pca = load_pca_model('data/processed/pca_model.pkl')
+centroids = np.load('results/clustering/cluster_centroids.npy')
+clusters = pd.read_csv('results/clustering/restaurant_clusters.csv')
+
+model = load_model()
+results = search_pca_within_clusters('cozy italian restaurant for a date night', model, pca, embeddings_pca, reviews, meta, centroids, clusters)
+print(results)
+"
+"""
