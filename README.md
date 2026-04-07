@@ -54,7 +54,7 @@ This project uses `uv` for dependency management. To set up the local environmen
 The raw dataset used for this project (Google Local Reviews) is extremely large and therefore not tracked or uploaded through Git. Instead, you will need to download it directly.
 
 1. Navigate to the UCSD public dataset repository: [Google Local Reviews](https://mcauleylab.ucsd.edu/public_datasets/gdrive/googlelocal/)
-2. Download the desired state or category review JSON files (e.g., `review-New_York.json.gz` and `meta-New_York.json.gz`).
+2. Download the desired state or category review JSON files (e.g. in our project, we use `review-New_York_10.json.gz`(New York 10-core) and `meta-New_York.json.gz`).
 3. Place the downloaded files directly into the `data/raw/` directory in this repository.
 4. Run `python src/0_data_processing.py` (ensure your environment is activated) to filter the metadata for NYC restaurants and add borough information. The output will be saved to `data/processed/meta-NYC-restaurant.json.gz`.
 
