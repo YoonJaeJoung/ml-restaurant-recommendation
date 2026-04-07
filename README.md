@@ -17,6 +17,7 @@ Results will be visualized via an **interactive map overlay interface**, making 
 
 ## Methods
 
+
 We apply core ML algorithms from the course syllabus to natural language text data:
 
 - **Sentence Embeddings** — Convert unstructured review texts into dense numerical feature vectors using a pre-trained model.
@@ -165,6 +166,48 @@ Detailed results and tradeoff plots are saved to `results/`:
 - `pca_evaluation_results.csv` / `.json` — full metrics table.
 - `pca_tradeoff_analysis.png` — four-panel chart (explained variance, accuracy vs. compression, latency, composite score).
 - `pca_scree_curve.png` — cumulative explained variance elbow curve.
+
+## Semantic Search
+
+With embeddings and PCA in place, the semantic search module (`src/similarity.py`) provides four search functions:
+
+| Function | Description | Speed |
+|---|---|---|
+| `search()` | Full search across all 3.7M reviews, chunked to avoid RAM overflow | Slowest |
+| `search_within_clusters()` | Filters to relevant clusters first, then searches full 768-dim embeddings | ~10x faster |
+| `search_pca()` | Searches all reviews using PCA-reduced 128-dim embeddings | ~99x faster |
+| `search_pca_within_clusters()` | Cluster filtering + PCA-reduced search — recommended | Fastest |
+
+All functions take a natural language query string and return a dataframe with:
+`name`, `avg_similarity`, `avg_rating`, `borough`, `latitude`, `longitude`, `gmap_id`
+
+### Required Files
+- `data/processed/review-NYC-restaurant-filtered.parquet` — filtered reviews (run `scripts/filter_reviews.py`)
+- `data/processed/review_embeddings_pca.npy` — PCA-reduced embeddings (run `src/4_pca.py`)
+- `data/processed/pca_model.pkl` — fitted PCA model (run `src/4_pca.py`)
+- `results/clustering/cluster_centroids.npy` — cluster centroids (run `src/clustering.py`)
+- `results/clustering/restaurant_clusters.csv` — cluster assignments (run `src/clustering.py`)
+
+### Example Usage
+```python
+import pandas as pd
+import numpy as np
+from src.similarity import load_model, load_pca_model, search_pca_within_clusters
+
+reviews = pd.read_parquet('data/processed/review-NYC-restaurant-filtered.parquet')
+meta = pd.read_parquet('data/processed/meta-NYC-restaurant.parquet')
+embeddings_pca = np.load('data/processed/review_embeddings_pca.npy', mmap_mode='r')
+pca = load_pca_model('data/processed/pca_model.pkl')
+centroids = np.load('results/clustering/cluster_centroids.npy')
+clusters = pd.read_csv('results/clustering/restaurant_clusters.csv')
+
+model = load_model()
+results = search_pca_within_clusters(
+    'cozy italian restaurant for a date night',
+    model, pca, embeddings_pca, reviews, meta, centroids, clusters
+)
+print(results)
+```
 
 ## Clustering
 
