@@ -291,8 +291,65 @@ With PCA-reduced embeddings in place, run the final search pipeline:
 
 Compared to the full-embedding search, the PCA-based search is significantly faster and uses a fraction of the memory, making it practical for iterative experimentation and real-time queries.
 
-## Interactive Map
+## 🍕 NYC Restaurant Explorer: Interactive Map（Frame, more functions coming...）
+1. Features
+- **Interactive Map** — Restaurants are plotted on a Mapbox map using latitude/longitude coordinates, color-coded by cluster category using a discrete color palette.
+- **Cluster Filter** — A sidebar multiselect control lets users choose which restaurant clusters to display. Clusters are sorted numerically, and the first 5 are shown by default to reduce initial load time.
+- **Rating Filter** — A sidebar slider lets users set a minimum average rating (1.0–5.0, default 3.5), filtering out lower-rated restaurants.
+- **Restaurant Count** — The sidebar dynamically shows the total number of restaurants matching the current filters.
+- **Two-Column Layout** — The main view is split into a map panel (left, 2/3 width) and a sortable restaurant details list (right, 1/3 width), displaying name, borough, average rating, and cluster.
+- **Hover Details** — Hovering over a map point shows the restaurant name, cluster ID, average rating, and borough.
+- **Smart Recommendation Placeholder** — A section at the bottom of the page previews a planned similarity-based recommendation feature using embedding vectors.
 
+2.  Requirements
+
+- Python 3.8+
+- [Streamlit](https://streamlit.io/)
+- [Pandas](https://pandas.pydata.org/)
+- [Plotly](https://plotly.com/python/)
+
+Install dependencies with:
+
+```bash
+pip install streamlit pandas plotly
+```
+
+---
+
+3. Data Requirements
+
+The app expects a CSV file at the following path:
+
+```
+results/clustering/restaurant_clusters.csv
+```
+
+The CSV must contain at least these columns:
+
+| Column | Description |
+|---|---|
+| `latitude` | Restaurant latitude coordinate |
+| `longitude` | Restaurant longitude coordinate |
+| `cluster` | Integer cluster ID assigned by the clustering model |
+| `name` | Restaurant name |
+| `avg_rating` | Average user rating (1.0–5.0) |
+| `borough` | NYC borough (e.g., Manhattan, Brooklyn) |
+
+Rows with missing `latitude` or `longitude` values are automatically dropped on load.
+
+---
+
+4.  How to Open
+
+From the project root directory, run:
+
+```bash
+streamlit run app.py
+```
+The app will open in your browser at by default
+
+5. Planned Features
+- **Similarity-Based Recommendations** — Input a restaurant you like and find the most similar ones using embedding vector search.
 ## Repo Structure
 
 ```
