@@ -1,7 +1,7 @@
 # Data
 data/raw/*
 !data/raw/.gitkeep
-data/processed/*
+data/processed/* - Commenting out to allow pulling processed data
 !data/processed/.gitkeep
 
 # Python

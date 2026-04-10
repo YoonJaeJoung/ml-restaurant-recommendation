@@ -131,7 +131,7 @@ def process_restaurant_data(
     # ---------------------------------------------------------
     print("Processing Metadata...")
     meta_records = []
-    with _open_file(meta_input_path) as f_in:
+    with gzip.open(meta_input_path, 'rt', encoding='utf-8') as f_in:
         for line in f_in:
             try:
                 row = json.loads(line)
@@ -180,7 +180,7 @@ def process_restaurant_data(
     chunk = []
     writer = None
     
-    with _open_file(reviews_input_path) as f_in:
+    with gzip.open(reviews_input_path, 'rt', encoding='utf-8') as f_in:
         for line in f_in:
             try:
                 row = json.loads(line)
@@ -221,32 +221,9 @@ def process_restaurant_data(
     print(f"Finished processing and saving reviews to {reviews_output_path}")
 
 if __name__ == "__main__":
-    # 自动检测文件格式
-    import os
-    
-    # 检查元数据文件
-    meta_path_gz = "data/raw/meta-New_York.json.gz"
-    meta_path_json = "data/raw/meta-New_York.json"
-    meta_input_path = meta_path_gz if os.path.exists(meta_path_gz) else meta_path_json
-    
-    # 检查评论文件
-    reviews_path_gz = "data/raw/review-New_York.json.gz"
-    reviews_path_json = "data/raw/review-New_York_10.json"
-    reviews_input_path = reviews_path_gz if os.path.exists(reviews_path_gz) else reviews_path_json
-    
-    if not os.path.exists(meta_input_path):
-        print(f"❌ Error: Metadata file not found!")
-        print(f"   Expected: {meta_path_gz} or {meta_path_json}")
-    elif not os.path.exists(reviews_input_path):
-        print(f"❌ Error: Reviews file not found!")
-        print(f"   Expected: {reviews_path_gz} or {reviews_path_json}")
-    else:
-        print(f"✅ Using metadata: {meta_input_path}")
-        print(f"✅ Using reviews: {reviews_input_path}")
-        
-        process_restaurant_data(
-            meta_input_path=meta_input_path,
-            meta_output_path="data/processed/meta-NYC-restaurant.parquet",
-            reviews_input_path=reviews_input_path,
-            reviews_output_path="data/processed/review-NYC-restaurant.parquet"
-        )
+    process_restaurant_data(
+        meta_input_path="data/raw/meta-New_York.json.gz",
+        meta_output_path="data/processed/meta-NYC-restaurant.parquet",
+        reviews_input_path="data/raw/review-New_York.json.gz",
+        reviews_output_path="data/processed/review-NYC-restaurant.parquet"
+    )

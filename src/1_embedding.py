@@ -69,7 +69,8 @@ def load_and_embed_data(meta_path, review_path, output_dir, min_reviews=30, max_
     print("Encoding metadata...")
     # Lab 3 Step 2: Text vectorization and normalization
     # Increased batch size (e.g. 32 to 64) is feasible when using sequence truncation and MPS acceleration
-    meta_embeddings = model.encode(meta_corpus, batch_size=32, normalize_embeddings=True, show_progress_bar=True)
+    # TODO: change to 256/512 if your computer has high performance
+    meta_embeddings = model.encode(meta_corpus, batch_size=64, normalize_embeddings=True, show_progress_bar=True)
     
     # Prepare review text
     print("Preparing review corpus...")
@@ -77,8 +78,9 @@ def load_and_embed_data(meta_path, review_path, output_dir, min_reviews=30, max_
     review_corpus = review_df['text_to_embed'].tolist()
     
     print("Encoding reviews...")
+    # TODO: change to 256/512 if your computer has high performance
     # Review dataset is large; use batch size 32 or 64 to speed up calculation on GPU/CPU
-    review_embeddings = model.encode(review_corpus, batch_size=32, normalize_embeddings=True, show_progress_bar=True)
+    review_embeddings = model.encode(review_corpus, batch_size=64, normalize_embeddings=True, show_progress_bar=True)
     
     print("Saving embeddings...")
     os.makedirs(output_dir, exist_ok=True)
