@@ -1,0 +1,124 @@
+/* Custom Streamlit Styling for NYC Restaurant Explorer */
+
+:root {
+    --primary-color: #FF6B6B;
+    --secondary-color: #4ECDC4;
+    --accent-color: #FFE66D;
+    --text-color: #2C3E50;
+    --light-bg: #F7F9FC;
+    --border-radius: 12px;
+    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Main title styling */
+.title {
+    color: var(--primary-color);
+    font-weight: 700;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Sidebar styling */
+.sidebar .sidebar-content {
+    background-color: var(--light-bg);
+    padding: 20px;
+    border-radius: var(--border-radius);
+}
+
+/* Section headers */
+.subheader {
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--secondary-color);
+    padding-bottom: 10px;
+    margin-top: 20px;
+}
+
+/* Cards and containers */
+.stMetric {
+    background-color: white;
+    padding: 15px;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    border-left: 4px solid var(--primary-color);
+}
+
+/* Buttons */
+.stButton > button {
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: var(--border-radius);
+    border: none;
+    padding: 10px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow);
+}
+
+.stButton > button:hover {
+    background-color: #FF5252;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(255, 107, 107, 0.3);
+}
+
+/* Input fields */
+.stTextInput input,
+.stNumberInput input,
+.stSelectbox select,
+.stSlider > div > div {
+    border-radius: var(--border-radius);
+    border: 2px solid var(--secondary-color);
+    padding: 10px 12px;
+}
+
+/* Dataframe styling */
+.stDataframe {
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+}
+
+/* Info boxes */
+.stInfo {
+    background-color: #E8F4F8;
+    border-left: 4px solid var(--secondary-color);
+    border-radius: var(--border-radius);
+    padding: 15px;
+}
+
+/* Success boxes */
+.stSuccess {
+    background-color: #E8F8F5;
+    border-left: 4px solid #27AE60;
+    border-radius: var(--border-radius);
+    padding: 15px;
+}
+
+/* Warning boxes */
+.stWarning {
+    background-color: #FEF5E7;
+    border-left: 4px solid var(--accent-color);
+    border-radius: var(--border-radius);
+    padding: 15px;
+}
+
+/* Markdown styling */
+.stMarkdown {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--text-color);
+    line-height: 1.6;
+}
+
+/* Divider */
+.divider {
+    margin: 30px 0;
+    border-top: 2px dashed var(--secondary-color);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .stButton > button {
+        width: 100%;
+    }
+    
+    .stMetric {
+        margin-bottom: 10px;
+    }
+}
