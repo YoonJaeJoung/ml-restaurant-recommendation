@@ -59,12 +59,12 @@ def build_features_combined(meta_normed, restaurant_ids):
     """
     review_df = pd.read_parquet(
         f"{DATA_DIR}/review-NYC-restaurant-filtered.parquet",
-        columns=["gmap_id", "text"],
+        columns=["gmap_id", "text_for_embedding"],
     )
 
-    # Concatenate all review texts per restaurant
-    review_df["text"] = review_df["text"].fillna("")
-    agg = review_df.groupby("gmap_id")["text"].apply(" ".join).reset_index()
+    # Concatenate all review texts per restaurant (English-only text)
+    review_df["text_for_embedding"] = review_df["text_for_embedding"].fillna("")
+    agg = review_df.groupby("gmap_id")["text_for_embedding"].apply(" ".join).reset_index()
     agg.columns = ["gmap_id", "all_text"]
 
     # Align to restaurant_ids order
