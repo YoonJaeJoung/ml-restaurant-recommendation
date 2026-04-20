@@ -56,7 +56,22 @@ The raw dataset used for this project (Google Local Reviews) is extremely large 
 1. Navigate to the UCSD public dataset repository: [Google Local Reviews](https://mcauleylab.ucsd.edu/public_datasets/gdrive/googlelocal/)
 2. Download the desired state or category review JSON files (e.g. in our project, we use `review-New_York_10.json.gz`(New York 10-core) and `meta-New_York.json.gz`).
 3. Place the downloaded files directly into the `data/raw/` directory in this repository.
-4. Run `python src/1_data_processing.py` (ensure your environment is activated) to filter the metadata for NYC restaurants and add borough information, and also to filter and extract English text. The output will be saved to `data/processed/meta-NYC-restaurant.parquet` and `data/processed/review-NYC-restaurant-filtered.parquet`.
+5. **Run Data Processing**:
+   ```bash
+   python src/1_data_processing.py
+   ```
+   
+   **Processing Pipeline Details:**
+   - **Borough Filtering**: Identifies NYC-specific restaurants and maps them to one of the 5 boroughs.
+   - **Status Filtering**: Automatically excludes any businesses marked as `"Permanently closed"` in the Google metadata.
+   - **Fault-Tolerant Extraction**: Uses line-based checkpointing (`review_processing_checkpoint.json`). If interrupted, the script resumes from the exact position in the multi-gigabyte raw JSON file.
+   - **Strict Language Filter**: 
+     - Extracts English text from `(Translated by Google)` blocks.
+     - **Discards ANY review containing native Chinese/CJK characters** that haven't been translated, ensuring the embedding model only sees high-quality English text.
+   - **Semantic Downsampling**: Instead of taking the first 500 reviews, it sorts all valid reviews by **text length (detail)** and keeps the top 500 most descriptive reviews per restaurant.
+   - **Dynamic Threshold**: Currently set to keep restaurants with at least **15 valid English reviews**.
+   
+   The output is saved to `data/processed/meta-NYC-restaurant.parquet` and `data/processed/review-NYC-restaurant-filtered.parquet`.
 
 ## Generating Embeddings
 
@@ -68,12 +83,22 @@ After downloading and processing the raw data, the next step is converting textu
    ```
 
    **Embedding Pipeline Details:**
-   - **Model**: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) (utilized for its asymmetric search capabilities: prepending "search_document" to corpus texts).
-   - **Truncation**: `max_seq_length = 256` tokens (effectively capturing ~200-word reviews). By clipping the model's default 8192 context window, we massively accelerate computation and prevent OOM errors.
+   - **Model**: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5).
+   - **Memory Management**: Uses `np.memmap` to write embeddings directly to disk, allowing millions of reviews to be processed without OOM errors.
+   - **Resumability**: Includes a JSON checkpointing system to resume from specific chunks if interrupted.
    - **Filtering & Downsampling**:
-     - *Minimum filter*: Excludes inactive restaurants with $\le 30$ reviews.
-     - *Maximum limit*: Caps highly-reviewed restaurants to an upper bound of `500` reviews to balance the dataset footprint.
-   - **Hardware Acceleration**: Automatically detects and leverages Apple Silicon (`mps`) GPU if accessible, which greatly cuts down processing time alongside proper `batch_size` (e.g., 32/64).
+     - *Minimum filter*: Excludes inactive restaurants with $\le 15$ valid English reviews.
+     - *Maximum limit*: Caps highly-reviewed restaurants to the top `500` most detailed reviews per restaurant to balance the dataset footprint.
+   - **Hardware Acceleration**: Automatically detects and leverages **CUDA** (remote) or **Apple Silicon (`mps`)** GPUs.
+
+## Full Pipeline Orchestration
+
+For a complete end-to-end run (Processing → Embedding → PCA → Clustering), use the provided unified script:
+
+```bash
+./run_pipeline.sh
+```
+This script is optimized for the **Lightning AI** remote environment and manages all environment variables and log redirection to `pipeline.log`.
 
 ## Merging Sharded Embeddings
 
@@ -111,7 +136,7 @@ While this produced correct results, operating on the full 768-d vectors across 
 
 ## PCA Dimensionality Reduction
 
-To address the high computational cost and memory demands of searching over full 768-dimensional embeddings, we applied **PCA (Principal Component Analysis)** to reduce the embedding vectors to a much smaller dimension. This is a **required step** before running the final search pipeline.
+To address the high computational cost and memory demands of searching over full 768-dimensional embeddings, we apply **Incremental PCA** to reduce the vectors to 128 dimensions. This approach allows us to process the massive embedding matrices in chunks without loading the full 10GB+ dataset into RAM.
 
 Run the PCA script after generating or merging the embeddings:
 
@@ -132,11 +157,9 @@ python src/4_pca.py
 |---|---|
 | `review_embeddings_pca.npy` | PCA-reduced review embeddings (N × 128) |
 | `meta_embeddings_pca.npy` | PCA-reduced metadata embeddings (M × 128) |
-| `pca_model.pkl` | Fitted `sklearn.decomposition.PCA` model |
+| `pca_model.pkl` | Fitted `IncrementalPCA` model |
 
-The fitted PCA model (`pca_model.pkl`) is saved so that **new queries can be projected into the same reduced space** at search time — no need to re-fit PCA when running the search.
-
-The script prints the total explained variance retained after reduction so you can verify that the compressed representation still captures the essential semantic information.
+The fitted PCA model (`pca_model.pkl`) is saved so that **new queries can be projected into the same reduced space** at search time. The script prints the total explained variance retained after reduction to verify that the compressed representation still captures the essential semantic information.
 
 ## PCA Component-Count Evaluation
 
@@ -555,8 +578,6 @@ ml-restaurant-recommendation/
 ├── requirements.txt
 ├── CLAUDE.md                  # AI assistant instructions for this project
 ├── scripts/                   # Non-ranking utility scripts
-│   ├── merge_embedding_shards.py      # Merge review embedding shards into one .npy
-│   └── 1_data_processing_match_embedding.py  # Align review parquet with embedding index
 ├── documents/
 │   ├── writtenProposal.md
 │   ├── designDocument.md
