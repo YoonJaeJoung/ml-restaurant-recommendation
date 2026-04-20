@@ -2,7 +2,7 @@
 4_pca.py
 Dimensionality reduction of review and metadata embeddings via PCA.
 
-Reads the merged 768-dimensional embedding vectors produced by 1_embedding.py,
+Reads the merged 768-dimensional embedding vectors produced by 2_embedding.py,
 fits PCA, and saves the reduced-dimension vectors alongside the fitted PCA
 model so downstream scripts (e.g. 5_search_test_pca.py) can project new
 queries into the same low-dimensional space.

@@ -2,7 +2,7 @@
 step3_sensitivity_demo.py  —  Step 3: compare α/β/γ weight sets across test queries
 
 Run from project root:
-    python src/ranking/scripts/step3_sensitivity_demo.py
+    python src/8_ranking/scripts/step3_sensitivity_demo.py
 
 Output:
     results/sensitivity_latest.csv        (full results with weight_set column)
@@ -19,9 +19,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 import numpy as np
 import pandas as pd
-from src.similarity import load_model, load_pca_model, search_pca_within_clusters
-from src.ranking.absa import get_aspect_prefs
-from src.ranking import rank_candidates
+from src.7_similarity import load_model, load_pca_model, search_pca_within_clusters
+from src.8_ranking.absa import get_aspect_prefs
+from src.8_ranking import rank_candidates
 
 REVIEWS_PATH   = "data/processed/review-NYC-restaurant-filtered.parquet"
 META_PATH      = "data/processed/meta-NYC-restaurant.parquet"
@@ -34,8 +34,8 @@ OUT_PATH       = "results/sensitivity_latest.csv"
 BLIND_PATH     = "results/sensitivity_latest_blind.csv"
 
 WEIGHT_SETS = {
-    "A: α=0.5 β=0.4 γ=0.1 (rating主导)": (0.5, 0.4, 0.1),
-    "B: α=0.4 β=0.5 γ=0.1 (aspect主导)": (0.4, 0.5, 0.1),
+    "A: α=0.5 β=0.4 γ=0.1 (rating-driven)": (0.5, 0.4, 0.1),
+    "B: α=0.4 β=0.5 γ=0.1 (aspect-driven)": (0.4, 0.5, 0.1),
     "C: α=0.3 β=0.5 γ=0.2 (balanced)":   (0.3, 0.5, 0.2),
 }
 

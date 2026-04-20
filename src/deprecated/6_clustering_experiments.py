@@ -16,7 +16,7 @@ DATA_DIR = "data/processed"
 def restore_filtered_meta():
     """Restore the filtered meta_df aligned with meta_embeddings.npy.
 
-    Reproduces the exact filtering from 1_embedding.py:
+    Reproduces the exact filtering from 2_embedding.py:
       - read full meta parquet
       - read review parquet, count reviews per gmap_id
       - keep restaurants with > 30 reviews

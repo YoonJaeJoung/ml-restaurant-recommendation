@@ -1,20 +1,20 @@
 """
-src/ranking/
+src/8_ranking/
 Ranking pipeline: formula, price-tier blending, sensitivity analysis,
 and query-detection validation.
 
 Run order (from project root):
-  Step 0  python src/ranking/scripts/step0_frequency_analysis.py
-  Step 1  python src/ranking/scripts/step1_precompute.py
-  Step 2  python src/ranking/scripts/step2_validation.py
-  Step 3  python src/ranking/scripts/step3_sensitivity_demo.py
+  Step 0  python src/8_ranking/scripts/step0_frequency_analysis.py
+  Step 1  python src/8_ranking/scripts/step1_precompute.py
+  Step 2  python src/8_ranking/scripts/step2_validation.py
+  Step 3  python src/8_ranking/scripts/step3_sensitivity_demo.py
 """
 import itertools
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 
-from src.ranking.absa import ASPECT_KEYWORDS
+from src.8_ranking.absa import ASPECT_KEYWORDS
 
 # Google Maps price tier → affordability score (higher = more affordable)
 PRICE_TIER_MAP   = {"$": 1.0, "$$": 0.75, "$$$": 0.25, "$$$$": 0.0}
@@ -192,4 +192,4 @@ TEST_CASES = [
 ]
 
 
-print("src/ranking loaded.")
+print("src/8_ranking loaded.")

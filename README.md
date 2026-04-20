@@ -56,7 +56,7 @@ The raw dataset used for this project (Google Local Reviews) is extremely large 
 1. Navigate to the UCSD public dataset repository: [Google Local Reviews](https://mcauleylab.ucsd.edu/public_datasets/gdrive/googlelocal/)
 2. Download the desired state or category review JSON files (e.g. in our project, we use `review-New_York_10.json.gz`(New York 10-core) and `meta-New_York.json.gz`).
 3. Place the downloaded files directly into the `data/raw/` directory in this repository.
-4. Run `python src/0_data_processing.py` (ensure your environment is activated) to filter the metadata for NYC restaurants and add borough information. The output will be saved to `data/processed/meta-NYC-restaurant.json.gz`.
+4. Run `python src/1_data_processing.py` (ensure your environment is activated) to filter the metadata for NYC restaurants and add borough information, and also to filter and extract English text. The output will be saved to `data/processed/meta-NYC-restaurant.parquet` and `data/processed/review-NYC-restaurant-filtered.parquet`.
 
 ## Generating Embeddings
 
@@ -64,7 +64,7 @@ After downloading and processing the raw data, the next step is converting textu
 
 1. **Run the Embedding Script**:
    ```bash
-   python src/1_embedding.py
+   python src/2_embedding.py
    ```
 
    **Embedding Pipeline Details:**
@@ -99,7 +99,7 @@ With the embeddings generated, we first tested semantic search directly on the f
 
 1. **Filter Parquet Data**:
    ```bash
-   python src/2_filter_reivews.py
+   python src/1_data_processing.py
    ```
 2. **Run Search Query on Full Embeddings**:
    ```bash
@@ -169,7 +169,7 @@ Detailed results and tradeoff plots are saved to `results/`:
 
 ## Semantic Search
 
-With embeddings and PCA in place, the semantic search module (`src/similarity.py`) provides four search functions:
+With embeddings and PCA in place, the semantic search module (`src/7_similarity.py`) provides four search functions:
 
 | Function | Description | Speed |
 |---|---|---|
@@ -182,17 +182,17 @@ All functions take a natural language query string and return a dataframe with:
 `name`, `avg_similarity`, `avg_rating`, `borough`, `latitude`, `longitude`, `gmap_id`
 
 ### Required Files
-- `data/processed/review-NYC-restaurant-filtered.parquet` — filtered reviews (run `scripts/filter_reviews.py`)
+- `data/processed/review-NYC-restaurant-filtered.parquet` — filtered reviews (run `scripts/1_data_processing.py`)
 - `data/processed/review_embeddings_pca.npy` — PCA-reduced embeddings (run `src/4_pca.py`)
 - `data/processed/pca_model.pkl` — fitted PCA model (run `src/4_pca.py`)
-- `results/clustering/cluster_centroids.npy` — cluster centroids (run `src/clustering.py`)
-- `results/clustering/restaurant_clusters.csv` — cluster assignments (run `src/clustering.py`)
+- `results/clustering/cluster_centroids.npy` — cluster centroids (run `src/6_clustering.py`)
+- `results/clustering/restaurant_clusters.csv` — cluster assignments (run `src/6_clustering.py`)
 
 ### Example Usage
 ```python
 import pandas as pd
 import numpy as np
-from src.similarity import load_model, load_pca_model, search_pca_within_clusters
+from src.7_similarity import load_model, load_pca_model, search_pca_within_clusters
 
 reviews = pd.read_parquet('data/processed/review-NYC-restaurant-filtered.parquet')
 meta = pd.read_parquet('data/processed/meta-NYC-restaurant.parquet')
@@ -253,7 +253,7 @@ We ran a full grid search across 4 schemes × 9 k values:
 
 ### Running Clustering
 ```bash
-python src/clustering.py
+python src/6_clustering.py
 ```
 
 ### Output Files
@@ -281,7 +281,7 @@ With PCA-reduced embeddings in place, run the final search pipeline:
 
 1. **Filter Parquet Data** (if not already done above):
    ```bash
-   python src/2_filter_reivews.py
+   python src/1_data_processing.py
    ```
 2. **Run Search Query on PCA Embeddings**:
    ```bash
@@ -298,7 +298,7 @@ Layers 2–3 of the recommendation pipeline: aspect-based sentiment scoring and 
 ### Architecture
 
 ```
-Layer 1  src/similarity.py          → top-100 candidate restaurants (semantic search)
+Layer 1  src/7_similarity.py          → top-100 candidate restaurants (semantic search)
 Layer 2  src/ranking/absa.py        → per-restaurant aspect scores (offline precompute)
 Layer 3  src/ranking/__init__.py    → final_score = α·avg_rating_norm
                                                    + β·aspect_weighted_norm
@@ -556,7 +556,7 @@ ml-restaurant-recommendation/
 ├── CLAUDE.md                  # AI assistant instructions for this project
 ├── scripts/                   # Non-ranking utility scripts
 │   ├── merge_embedding_shards.py      # Merge review embedding shards into one .npy
-│   └── filter_reviews_match_embedding.py  # Align review parquet with embedding index
+│   └── 1_data_processing_match_embedding.py  # Align review parquet with embedding index
 ├── documents/
 │   ├── writtenProposal.md
 │   ├── designDocument.md
@@ -580,20 +580,20 @@ ml-restaurant-recommendation/
 │   ├── exploration.ipynb
 │   └── clustering_analysis.ipynb
 ├── src/
-│   ├── 0_data_processing.py   # Data loading, cleaning, borough assignment
-│   ├── 1_embedding.py         # Sentence embedding generation (nomic-embed-text-v1.5)
-│   ├── 2_filter_reivews.py    # Filter & align review parquet with embedding index
+│   ├── 1_data_processing.py   # Data loading, cleaning, filtering, borough assignment
+│   ├── 2_embedding.py         # Sentence embedding generation (nomic-embed-text-v1.5)
 │   ├── 3_search_test_embedding.py  # Semantic search on full 768-d embeddings (baseline)
 │   ├── 4_pca.py               # PCA dimensionality reduction (768 → 128)
 │   ├── 4a_pca_evaluation.py   # PCA component-count evaluation (recall@10, speedup)
 │   ├── 5_search_test_pca.py   # Semantic search on PCA-reduced embeddings
-│   ├── clustering.py          # K-Means / GMM clustering on combined features
-│   ├── similarity.py          # Cosine similarity, cluster-aware search, PCA search
-│   ├── absa.py                # Shim → re-exports from src/ranking/absa.py
+│   ├── 6a_clustering_pca.py   # K-Means clustering (PCA-reduced)
+│   ├── 6b_clustering_full.py  # K-Means clustering (Full-dimensional)
+│   ├── 7_similarity.py        # Cosine similarity, cluster-aware search, PCA search
+│   ├── absa.py                # Shim → re-exports from src/8_ranking/absa.py
 │   ├── evaluation.py          # Model evaluation metrics
 │   ├── user_profile.py        # User profile management
 │   ├── app.py                 # Interactive map explorer (streamlit run src/app.py)
-│   └── ranking/               # Ranking & ABSA package
+│   └── 8_ranking/             # Ranking & ABSA package
 │       ├── __init__.py        # rank_candidates, add_price_tier_score, sensitivity_analysis
 │       ├── absa.py            # ABSA precompute, get_aspect_prefs, validation
 │       ├── demo_search.py     # Interactive search + ranking demo (streamlit run)

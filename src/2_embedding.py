@@ -2,7 +2,7 @@
 embedding.py
 Sentence embedding generation for reviews and queries using nomic-ai/nomic-embed-text-v1.5.
 
-Reads the filtered review parquet produced by 2_filter_reivews.py, which already
+Reads the filtered review parquet produced by 1_data_processing.py, which already
 has the 30-500 review count rule applied and a `text_for_embedding` column that
 contains the English portion of Google-translated reviews (or the original text
 when the review was already in English).
@@ -37,7 +37,7 @@ def load_and_embed_data(meta_path, review_path, output_dir):
 
     print(f"Data shape - Meta: {len(meta_df)}, Reviews: {len(review_df)}")
 
-    # Reviews are already filtered by 2_filter_reivews.py. Align meta rows to
+    # Reviews are already filtered by 1_data_processing.py. Align meta rows to
     # the surviving gmap_ids so meta_embeddings.npy matches the filtered set.
     valid_gmap_ids = set(review_df["gmap_id"].unique())
     meta_df = meta_df[meta_df["gmap_id"].isin(valid_gmap_ids)].reset_index(drop=True)
@@ -47,7 +47,7 @@ def load_and_embed_data(meta_path, review_path, output_dir):
     if "text_for_embedding" not in review_df.columns:
         raise KeyError(
             "review parquet is missing 'text_for_embedding' column. "
-            "Run src/2_filter_reivews.py first to regenerate the filtered parquet."
+            "Run src/1_data_processing.py first to regenerate the filtered parquet."
         )
 
     # Prepare metadata text

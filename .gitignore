@@ -1,9 +1,13 @@
 # Data
 data/raw/*
 !data/raw/.gitkeep
-data/processed/* - Commenting out to allow pulling processed data
+data/processed/*
 !data/processed/.gitkeep
 
+# Large generated data formats
+*.parquet
+*.npy
+*.pkl
 # Python
 __pycache__/
 *.py[cod]

@@ -247,7 +247,7 @@ To test search_pca_within_clusters:
 python -c "
 import pandas as pd
 import numpy as np
-from src.similarity import load_model, load_pca_model, search_pca_within_clusters
+from src.7_similarity import load_model, load_pca_model, search_pca_within_clusters
 
 reviews = pd.read_parquet('data/processed/review-NYC-restaurant-filtered.parquet')
 meta = pd.read_parquet('data/processed/meta-NYC-restaurant.parquet')

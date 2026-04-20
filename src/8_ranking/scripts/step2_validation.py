@@ -2,7 +2,7 @@
 step2_validation.py  —  Step 2: validate ABSA + query detection + sensitivity analysis
 
 Run from project root:
-    python src/ranking/scripts/step2_validation.py
+    python src/8_ranking/scripts/step2_validation.py
 
 Prerequisites:
     data/processed/aspect_scores.parquet      (from step1_precompute.py)
@@ -16,8 +16,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 import pandas as pd
 import numpy as np
-from src.ranking.absa import validate_absa_accuracy, validate_vader_clause_length, get_aspect_prefs
-from src.ranking import validate_query_detection, sensitivity_analysis, TEST_CASES
+from src.8_ranking.absa import validate_absa_accuracy, validate_vader_clause_length, get_aspect_prefs
+from src.8_ranking import validate_query_detection, sensitivity_analysis, TEST_CASES
 
 REVIEWS_PATH       = "data/processed/review-NYC-restaurant-filtered.parquet"
 LABELS_PATH        = "data/validation/sample_sentences_labeled.csv"

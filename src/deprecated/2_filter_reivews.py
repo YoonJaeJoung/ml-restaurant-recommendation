@@ -26,7 +26,7 @@ def select_english_text(text):
     return text
 
 
-def filter_reviews(input_path, output_path, min_reviews=30, max_reviews=500):
+def 1_data_processing(input_path, output_path, min_reviews=30, max_reviews=500):
   print("Loading data...")
   review_df = pd.read_parquet(input_path)
   print(f"Original shape: {len(review_df)}")
@@ -86,4 +86,4 @@ if __name__ == "__main__":
   OUTPUT_PATH = "./data/processed/review-NYC-restaurant-filtered.parquet"
 
   # Using 30-500 rule to exactly match the 3,746,426 rows
-  filter_reviews(INPUT_PATH, OUTPUT_PATH, min_reviews=30, max_reviews=500)
+  1_data_processing(INPUT_PATH, OUTPUT_PATH, min_reviews=30, max_reviews=500)

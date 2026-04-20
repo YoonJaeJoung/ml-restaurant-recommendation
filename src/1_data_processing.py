@@ -1,12 +1,15 @@
 """
 data_processing.py
 Data loading, cleaning, and preprocessing utilities.
+Merges steps 0 and 2.
 """
 
 import gzip
 import json
 import os
-from pathlib import Path
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 FOOD_RESTAURANT = {
     'Afghani restaurant', 'African restaurant', 'Alsace restaurant', 'American restaurant', 'Angler fish restaurant', 
@@ -76,13 +79,9 @@ FOOD_RESTAURANT = {
 }
 
 MANHATTAN_LIST = ["New York", "Manhattan", "Battery Park City", "Carnegie Hill", "Chelsea", "Chinatown", "Civic Center", "Clinton", "East Harlem", "East Village", "Financial District", "Flatiron", "Gramercy", "Greenwich Village", "Hamilton Heights", "Harlem (Central)", "Herald Square", "Hudson Square", "Inwood", "Lenox Hill", "Lincoln Square", "Little Italy", "Lower East Side", "Manhattan Valley", "Manhattanville", "Midtown", "Midtown South", "Morningside Heights", "Murray Hill", "NoHo", "Roosevelt Island", "SoHo", "South Village", "Stuyvesant Town", "Sutton Place", "Times Square", "Tribeca", "Tudor City", "Turtle Bay", "Union Square", "Upper East Side", "Upper West Side", "Wall Street", "Washington Heights", "West Village", "Yorkville"]
-
 BRONX_LIST = ["Bronx", "Allerton", "Bathgate", "Baychester", "Bedford Park", "Belmont", "Bronxdale", "Bronx Park South", "Bronx River", "Castle Hill", "City Island", "Claremont Village", "Clason Point", "Concourse", "Concourse Village", "Co-op City", "Country Club", "East Tremont", "Eastchester", "Edenwald", "Edgewater Park", "Fieldston", "Fordham", "High Bridge", "Hunts Point", "Kingsbridge", "Kingsbridge Heights", "Longwood", "Marble Hill", "Melrose", "Morris Heights", "Morris Park", "Morrisania", "Mott Haven", "Mount Eden", "Mount Hope", "North Riverdale", "Norwood", "Olinville", "Parkchester", "Pelham Bay", "Pelham Gardens", "Pelham Parkway", "Port Morris", "Riverdale", "Schuylerville", "Soundview", "Spuyten Duyvil", "Throgs Neck", "Unionport", "University Heights", "Van Nest", "Wakefield", "West Farms", "Westchester Square", "Williamsbridge", "Woodlawn"]
-
 BROOKLYN_LIST = ["Brooklyn", "Bath Beach", "Bay Ridge", "Bedford Stuyvesant", "Bensonhurst", "Bergen Beach", "Boerum Hill", "Borough Park", "Brighton Beach", "Broadway Junction", "Brooklyn Heights", "Brownsville", "Bushwick", "Canarsie", "Carroll Gardens", "City Line", "Clinton Hill", "Cobble Hill", "Coney Island", "Crown Heights", "Cypress Hills", "Ditmas Park", "Downtown", "DUMBO", "Dyker Heights", "East Flatbush", "East New York", "East Williamsburg", "Farragut", "Flatbush", "Flatlands", "Fort Greene", "Fort Hamilton", "Fulton Ferry", "Georgetown", "Gerritsen Beach", "Gowanus", "Gravesend", "Greenpoint", "Highland Park", "Homecrest", "Kensington", "Kings Highway", "Manhattan Beach", "Manhattan Terrace", "Mapleton", "Marine Park", "Midwood", "Mill Basin", "Mill Island", "Navy Yard", "New Lots", "North Side", "Ocean Hill", "Ocean Parkway", "Paerdegat Basin", "Park Slope", "Plum Beach", "Prospect Heights", "Prospect Lefferts Gardens", "Prospect Park South", "Red Hook", "Remsen Village", "Rugby", "Sea Gate", "Sheepshead Bay", "South Side", "Spring Creek", "Starrett City", "Stuyvesant Heights", "Sunset Park", "Tompkins Park North", "Vinegar Hill", "Weeksville", "Williamsburg", "Windsor Terrace", "Wingate"]
-
 QUEENS_LIST = ["Queens", "Arverne", "Astoria", "Astoria Heights", "Auburndale", "Bay Terrace", "Bayside", "Bayswater", "Beechhurst", "Bellaire", "Belle Harbor", "Bellerose", "Blissville", "Breezy Point", "Briarwood", "Broad Channel", "Brookville", "Cambria Heights", "Clearview", "College Point", "Douglaston", "Dutch Kills", "East Elmhurst", "Edgemere", "Elmhurst", "Far Rockaway", "Floral Park", "Flushing", "Flushing (Downtown)", "Forest Hills", "Forest Hills Gardens", "Fresh Meadows", "Glen Oaks", "Glendale", "Hammels", "Hillcrest", "Hollis", "Holliswood", "Howard Beach", "Hunters Point", "Jackson Heights", "Jamaica", "Jamaica Center", "Jamaica Estates", "Jamaica Hills", "Kew Gardens", "Kew Gardens Hills", "Laurelton", "Lefrak City", "Lindenwood", "Little Neck", "Long Island City", "Malba", "Maspeth", "Middle Village", "Murray Hill", "Neponsit", "New Hyde Park", "North Corona", "Oakland Gardens", "Ozone Park", "Pomonok", "Queens Village", "Queensboro Hill", "Ravenswood", "Rego Park", "Richmond Hill", "Ridgewood", "Rochdale", "Rockaway Park", "Rosedale", "Roxbury", "Seaside", "Somerville", "South Corona", "South Jamaica", "South Ozone Park", "Springfield Gardens", "St. Albans", "Steinway", "Sunnyside", "Sunnyside Gardens", "Utopia", "Whitestone", "Woodhaven", "Woodside"]
-
 STATEN_ISLAND_LIST = ["Staten Island", "Annadale", "Arden Heights", "Arlington", "Arrochar", "Bay Terrace", "Bloomfield", "Bulls Head", "Butler Manor", "Castleton Corners", "Charleston", "Chelsea", "Clifton", "Concord", "Dongan Hills", "Egbertville", "Elm Park", "Eltingville", "Emerson Hill", "Fox Hills", "Graniteville", "Grant City", "Grasmere", "Great Kills", "Greenridge", "Grymes Hill", "Heartland Village", "Howland Hook", "Huguenot", "Lighthouse Hill", "Livingston", "Manor Heights", "Mariner's Harbor", "Midland Beach", "New Brighton", "New Dorp", "New Dorp Beach", "New Springville", "Oakwood", "Old Place", "Old Town", "Park Hill", "Pleasant Plains", "Port Ivory", "Port Richmond", "Prince's Bay", "Randall Manor", "Richmond Town", "Richmond Valley", "Rosebank", "Rossville", "Sandy Ground", "Shore Acres", "Silver Lake", "South Beach", "St. George", "Stapleton", "Sunnyside", "Todt Hill", "Tompkinsville", "Tottenville", "Travis", "Ward Hill", "West Brighton", "Westerleigh", "Willowbrook", "Woodrow"]
 
 BOROUGH_MAP = {}
@@ -99,30 +98,85 @@ for neighborhood in STATEN_ISLAND_LIST:
 
 VALID_BOROUGHS = {"Manhattan", "Brooklyn", "Queens", "Bronx", "Staten Island"}
 
-import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
+TRANS_MARK = "(Translated by Google)"
+ORIG_MARK = "(Original)"
 
-def _open_file(file_path):
+def select_english_text(text):
+    """Return the English portion of a review's text field.
+
+    - If the text begins with '(Translated by Google)', extract the English
+      translation between that marker and '(Original)'.
+    - Otherwise return the text unchanged (already in the target locale).
+    - None / NaN / empty -> "".
     """
-    自动打开 .json 或 .json.gz 文件
-    """
-    if file_path.endswith('.gz'):
-        return gzip.open(file_path, 'rt', encoding='utf-8')
-    else:
-        return open(file_path, 'r', encoding='utf-8')
+    if not isinstance(text, str) or not text:
+        return ""
+    stripped = text.lstrip()
+    if stripped.startswith(TRANS_MARK):
+        after = stripped[len(TRANS_MARK):]
+        english = after.split(ORIG_MARK, 1)[0]
+        return english.strip()
+    return text
+
+def filter_reviews(input_path, output_path, min_reviews=30, max_reviews=500):
+    print("Loading data for filtering...")
+    review_df = pd.read_parquet(input_path)
+    print(f"Original shape: {len(review_df)}")
+
+    # 1. Filter out restaurants with too few reviews (> 30)
+    print(f"Filtering: keeping only restaurants with > {min_reviews} reviews...")
+    review_counts = review_df.groupby('gmap_id').size()
+    valid_gmap_ids = review_counts[review_counts > min_reviews].index
+
+    review_df = review_df[review_df['gmap_id'].isin(valid_gmap_ids)]
+    print(f"After min_reviews shape: {len(review_df)}")
+
+    # 2. Downsampling: Keep at most max_reviews per restaurant (<= 500)
+    if max_reviews is not None:
+        print(f"Downsampling: keeping maximum {max_reviews} reviews per restaurant...")
+        review_df = review_df.groupby('gmap_id').head(max_reviews).reset_index(drop=True)
+        print(f"Final shape after max limit: {len(review_df)}")
+
+    # 3. Extract English text for embedding / TF-IDF
+    print("Extracting English text (stripping (Translated by Google) wrapper when present)...")
+    text_series = review_df["text"].fillna("")
+    starts_with_trans = text_series.str.lstrip().str.startswith(TRANS_MARK)
+    has_original_marker = text_series.str.contains(ORIG_MARK, regex=False)
+    malformed_mask = starts_with_trans & ~has_original_marker
+
+    review_df["text_for_embedding"] = review_df["text"].map(select_english_text)
+
+    n_translated = int(starts_with_trans.sum())
+    n_malformed = int(malformed_mask.sum())
+    print(
+        f"  {n_translated:,} Google-translated rows "
+        f"({100 * n_translated / len(review_df):.2f}%) had their wrapper stripped"
+    )
+
+    if n_malformed > 0:
+        print(
+            f"  [WARN] {n_malformed} malformed rows: begin with '(Translated by Google)' "
+            f"but no '(Original)' marker found. Prefix stripped, remainder kept."
+        )
+
+    # 4. Save the filtered dataframe
+    print("Saving to parquet...")
+    review_df.to_parquet(output_path, index=False)
+    print(f"Successfully saved matched data ({len(review_df)} rows) to: {output_path}")
 
 def process_restaurant_data(
     meta_input_path: str,
     meta_output_path: str,
     reviews_input_path: str,
-    reviews_output_path: str
+    reviews_output_path: str,
+    reviews_filtered_output_path: str
 ):
     """
     Reads raw Google Local Reviews metadata, filters for valid restaurants in NYC boroughs,
     and writes out a processed Parquet file.
     Then, reads the review data, filters for only reviews belonging to those restaurants,
     and streams them to a processed Parquet file.
+    Finally, filters reviews by count, extracts English text, and saves the final parquet over.
     """
     os.makedirs(os.path.dirname(meta_output_path), exist_ok=True)
     
@@ -218,12 +272,18 @@ def process_restaurant_data(
     if writer:
         writer.close()
         
-    print(f"Finished processing and saving reviews to {reviews_output_path}")
+    print(f"Finished processing and saving intermediate reviews to {reviews_output_path}")
+    
+    # ---------------------------------------------------------
+    # 3. Filter Reviews
+    # ---------------------------------------------------------
+    filter_reviews(reviews_output_path, reviews_filtered_output_path, min_reviews=30, max_reviews=500)
 
 if __name__ == "__main__":
     process_restaurant_data(
         meta_input_path="data/raw/meta-New_York.json.gz",
         meta_output_path="data/processed/meta-NYC-restaurant.parquet",
-        reviews_input_path="data/raw/review-New_York.json.gz",
-        reviews_output_path="data/processed/review-NYC-restaurant.parquet"
+        reviews_input_path="data/raw/review-New_York_10.json.gz",
+        reviews_output_path="data/processed/review-NYC-restaurant.parquet",
+        reviews_filtered_output_path="data/processed/review-NYC-restaurant-filtered.parquet"
     )

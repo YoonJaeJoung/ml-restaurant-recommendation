@@ -1,7 +1,7 @@
 """
 demo_search.py
 Standalone search + ranking demo.
-Run: streamlit run src/ranking/demo_search.py
+Run: streamlit run src/8_ranking/demo_search.py
 search --> visualize 4 aspects's weights and can manually adjust
 --> recompute and show the ranks
 """
@@ -13,9 +13,9 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 
-from src.similarity import load_model, load_pca_model, search_pca_within_clusters
+from src.7_similarity import load_model, load_pca_model, search_pca_within_clusters
 from src.absa import get_aspect_prefs
-from src.ranking import rank_candidates, add_price_tier_score
+from src.8_ranking import rank_candidates, add_price_tier_score
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 REVIEWS_PATH   = "data/processed/review-NYC-restaurant-filtered.parquet"

@@ -10,7 +10,7 @@ requires less memory.
 Prerequisites
   - data/processed/review_embeddings_pca.npy   (from 4_pca.py)
   - data/processed/pca_model.pkl               (from 4_pca.py)
-  - data/processed/review-NYC-restaurant-filtered.parquet  (from 2_filter_reivews.py)
+  - data/processed/review-NYC-restaurant-filtered.parquet  (from 1_data_processing.py)
   - data/processed/meta-NYC-restaurant.parquet
 """
 

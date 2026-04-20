@@ -2,7 +2,7 @@
 step1_precompute.py  —  Step 1: precompute ABSA aspect scores (offline, ~1-2h)
 
 Run from project root:
-    python src/ranking/scripts/step1_precompute.py
+    python src/8_ranking/scripts/step1_precompute.py
 
 Output:
     data/processed/aspect_scores.parquet   (21k restaurants × 4 aspects)
@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 import time
 import pandas as pd
-from src.ranking.absa import precompute_all_aspect_scores
+from src.8_ranking.absa import precompute_all_aspect_scores
 
 REVIEWS_PATH  = "data/processed/review-NYC-restaurant-filtered.parquet"
 SCORES_OUT    = "data/processed/aspect_scores.parquet"
