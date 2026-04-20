@@ -99,7 +99,7 @@ def aggregate_to_restaurants(
     )
     results = restaurant_scores.merge(meta_df, on="gmap_id", how="left")
     results = results.sort_values("avg_similarity", ascending=False).head(top_n)
-    return results[["name", "avg_similarity", "avg_rating", "borough", "latitude", "longitude", "gmap_id"]]
+    return results[["name", "avg_similarity", "avg_rating", "borough", "description", "url", "latitude", "longitude", "gmap_id"]]
 
 def find_best_cluster(
     query_embedding: np.ndarray,
@@ -258,7 +258,7 @@ def main():
     print("\n" + "="*60)
     print("🗽 NYC RESTAURANT SEMANTIC SEARCH (Production CLI)")
     print("="*60)
-    print("🚀 Initializing engine and models...")
+    print("Initializing engine and models...")
     start_init = time.time()
 
     # Define standard paths
@@ -274,7 +274,7 @@ def main():
     required = [REVIEW_PATH, META_PATH, PCA_EMBEDDINGS_PATH, PCA_MODEL_PATH, CENTROIDS_PATH, CLUSTERS_PATH, SUMMARY_PATH]
     for p in required:
         if not os.path.exists(p):
-            print(f"❌ Missing required file: {p}")
+            print(f"Error: Missing required file: {p}")
             return
 
     # Load everything (once)
@@ -286,11 +286,11 @@ def main():
     N_RESTAURANTS = 19532
     PCA_DIM = 128
 
-    print(f"📦 Loading embeddings (2.1M reviews, 128 dims)...")
+    print(f"Loading embeddings (2.1M reviews, 128 dims)...")
     # Use raw binary loader for production files
     embeddings_pca = load_embeddings_raw(PCA_EMBEDDINGS_PATH, PCA_DIM)
     
-    print(f"📑 Loading metadata...")
+    print(f"Loading metadata...")
     # Load dataframes (Warning: 2.1M review metadata consumes ~2GB RAM)
     reviews = pd.read_parquet(REVIEW_PATH, columns=['gmap_id'])
     meta = pd.read_parquet(META_PATH)
@@ -302,14 +302,14 @@ def main():
     cluster_info = {c['cluster_id']: c for c in summary}
 
     init_time = time.time() - start_init
-    print(f"✅ Initialization complete ({init_time:.2f}s)")
+    print(f"Initialization complete ({init_time:.2f}s)")
     print("-" * 60)
     print("Type your query below (e.g. 'cozy candlelit italian secret spot')")
     print("Type 'exit' to quit.")
 
     while True:
         try:
-            query = input("\n🔍 Query: ").strip()
+            query = input("\nQuery: ").strip()
         except EOFError:
             break
             
@@ -326,21 +326,25 @@ def main():
         search_time = time.time() - start_search
 
         # Explainability output
-        print("\n📍 TARGETING CLUSTERS:")
+        print("\nTARGETING CLUSTERS:")
         for cid in best_clusters:
             keywords = ", ".join(cluster_info.get(cid, {}).get('top_keywords', []))
-            print(f"   • Cluster {cid:2}: {keywords}")
+            print(f"   - Cluster {cid:2}: {keywords}")
 
         # Result Table
-        print("\n🏆 TOP RECOMMENDATIONS:")
+        print("\nTOP RECOMMENDATIONS:")
         if not results.empty:
-            # Format similarity as percentage for readability
             results['similarity'] = (results['avg_similarity'] * 100).map('{:.1f}%'.format)
-            print(results[['name', 'similarity', 'avg_rating', 'borough']].to_string(index=False))
+            for i, (_, row) in enumerate(results.iterrows()):
+                print(f"\n{i+1}. {row['name']} ({row['similarity']} Match)")
+                print(f"   Rating: {row['avg_rating']} | Borough: {row['borough']}")
+                desc = row['description'] if row['description'] else "No description available."
+                print(f"   Description: {desc}")
+                print(f"   Google Maps: {row['url']}")
         else:
             print("   No matching restaurants found.")
             
-        print(f"\n⏱️  Search Latency: {search_time*1000:.2f} ms")
+        print(f"\nSearch Latency: {search_time*1000:.2f} ms")
         print("-" * 30)
 
 if __name__ == "__main__":

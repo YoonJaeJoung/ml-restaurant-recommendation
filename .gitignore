@@ -1,6 +1,7 @@
 # Data
 data/raw/*
 !data/raw/.gitkeep
+*.zip
 
 # Exclude large raw embeddings
 data/processed/review_embeddings.npy
