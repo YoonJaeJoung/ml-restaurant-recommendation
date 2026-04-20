@@ -109,27 +109,19 @@ For a complete end-to-end run (Processing → Embedding → PCA → Clustering),
 ```
 This script is optimized for the **Lightning AI** remote environment and manages all environment variables and log redirection to `pipeline.log`.
 
-## Merging Sharded Embeddings
+## Downloading Raw Embeddings
 
-Because `review_embeddings.npy` can exceed GitHub single-file limits, review embeddings may be uploaded as shard files such as:
+If you do not wish to generate the embeddings locally (which can take several hours), you can download the pre-computed raw embedding package:
 
-- `data/processed/review_embeddings.part00.npy`
-- `data/processed/review_embeddings.part01.npy`
-- `data/processed/review_embeddings.part02.npy`
+1. **Download the ZIP**: [NYC Restaurant Raw Embeddings](https://drive.google.com/file/d/1frL_0ib3iFE0BrlnChL4p-q0me90Pk4x/view?usp=share_link)
+2. **Setup**: Unzip the contents (`review_embeddings.npy` and `meta_embeddings.npy`) into the `data/processed/` directory.
 
-To merge them back into one file locally:
-
-```bash
-python scripts/merge_embedding_shards.py --input-dir data/processed --prefix review_embeddings.part --output review_embeddings.npy
-```
-
-After running, merged output will be created at:
-
-- `data/processed/review_embeddings.npy`
+> [!IMPORTANT]
+> **Production Note**: These raw 768-dimensional embeddings are only required if you intend to re-run the PCA evaluation or high-precision similarity tests. The **final production search engine** and **interactive map** operate exclusively on the PCA-reduced artifacts tracked via Git LFS and **do not require** these 6GB raw files to function.
 
 ## Semantic Search (Initial Test on Full Embeddings)
 
-With the embeddings generated, we first tested semantic search directly on the full 768-dimensional vectors. This step filters the review dataset and runs cosine similarity between a user query and every review embedding.
+With the embeddings generated (or downloaded), we first tested semantic search directly on the full 768-dimensional vectors. This step filters the review dataset and runs cosine similarity between a user query and every review embedding.
 
 1. **Filter Parquet Data**:
    ```bash
@@ -229,47 +221,21 @@ Evaluation performed using the T4 GPU on the full 2.15 million review set.
 - **Efficiency**: GPU mapping of 2 million rows now takes only **20.6s**, enabling rapid iteration on the full Google Maps NYC dataset.
 - **Sweet Spot**: `n_components=256` provides the best recall-to-size tradeoff on the full data, while `128` remains the most efficient for low-latency production use.
 
-## Semantic Search
+## Semantic Search (PCA-Reduced)
 
-With embeddings and PCA in place, the semantic search module (`src/7_similarity.py`) provides four search functions:
+With PCA-reduced embeddings in place, run the final search pipeline:
 
-| Function | Description | Speed |
-|---|---|---|
-| `search()` | Full search across all 2.1M reviews, chunked to avoid RAM overflow | Slowest |
-| `search_within_clusters()` | Filters to relevant clusters first, then searches full 768-dim embeddings | ~10x faster |
-| `search_pca()` | Searches all reviews using PCA-reduced 128-dim embeddings | ~99x faster |
-| `search_pca_within_clusters()` | Cluster filtering + PCA-reduced search — recommended | Fastest |
+1. **Filter Parquet Data** (if not already done above):
+   ```bash
+   python src/1_data_processing.py
+   ```
+2. **Run Search Query on PCA Embeddings**:
+   ```bash
+   python src/5_search_test_pca.py
+   ```
+   Modify the query inside `5_search_test_pca.py` to try different searches. The script loads the saved PCA model, projects the query embedding into the reduced space, and then computes cosine similarity against the PCA-reduced review embeddings.
 
-All functions take a natural language query string and return a dataframe with:
-`name`, `avg_similarity`, `avg_rating`, `borough`, `latitude`, `longitude`, `gmap_id`
-
-### Required Files
-- `data/processed/review-NYC-restaurant-filtered.parquet` — filtered reviews (run `src/1_data_processing.py`)
-- `results/pca/review_embeddings_pca.npy` — PCA-reduced embeddings (run `src/4_pca.py`)
-- `results/pca/pca_model.pkl` — fitted PCA model (run `src/4_pca.py`)
-- `results/clustering/cluster_centroids.npy` — cluster centroids (run `src/6a_clustering_pca.py`)
-- `results/clustering/restaurant_clusters.csv` — cluster assignments (run `src/6a_clustering_pca.py`)
-
-### Example Usage
-```python
-import pandas as pd
-import numpy as np
-from src.7_similarity import load_model, load_pca_model, search_pca_within_clusters
-
-reviews = pd.read_parquet('data/processed/review-NYC-restaurant-filtered.parquet')
-meta = pd.read_parquet('data/processed/meta-NYC-restaurant.parquet')
-embeddings_pca = np.load('results/pca/review_embeddings_pca.npy', mmap_mode='r')
-pca = load_pca_model('results/pca/pca_model.pkl')
-centroids = np.load('results/clustering/cluster_centroids.npy')
-clusters = pd.read_csv('results/clustering/restaurant_clusters.csv')
-
-model = load_model()
-results = search_pca_within_clusters(
-    'cozy italian restaurant for a date night',
-    model, pca, embeddings_pca, reviews, meta, centroids, clusters
-)
-print(results)
-```
+Compared to the full-embedding search, the PCA-based search is significantly faster and uses a fraction of the memory, making it practical for iterative experimentation and real-time queries.
 
 ## Clustering
 
@@ -336,21 +302,49 @@ All secondary clustering artifacts are saved to `results/clustering/evaluation/`
 
 At query time, the user's input is first matched to its nearest cluster centroid (using `cluster_centroids.npy`), then similarity search is conducted **only within that cluster** — reducing the search space by ~50× compared to full-corpus search.
 
-## Semantic Search (PCA-Reduced)
+## Semantic Search (Cluster-Based)
 
-With PCA-reduced embeddings in place, run the final search pipeline:
+With embeddings, PCA, and Clustering in place, the production search engine (`src/7_similarity.py`) provides an interactive interface for querying the entire NYC database.
 
-1. **Filter Parquet Data** (if not already done above):
-   ```bash
-   python src/1_data_processing.py
-   ```
-2. **Run Search Query on PCA Embeddings**:
-   ```bash
-   python src/5_search_test_pca.py
-   ```
-   Modify the query inside `5_search_test_pca.py` to try different searches. The script loads the saved PCA model, projects the query embedding into the reduced space, and then computes cosine similarity against the PCA-reduced review embeddings.
+### Running the Search Engine
+You can launch the interactive search CLI to ask natural language queries (e.g., "secret italian spot in Soho"):
+```bash
+python src/7_similarity.py
+```
+The CLI will target relevant clusters first and then perform high-speed PCA-reduced search within them.
 
-Compared to the full-embedding search, the PCA-based search is significantly faster and uses a fraction of the memory, making it practical for iterative experimentation and real-time queries.
+### Algorithm Performance
+The module provides four variants of the search algorithm:
+
+| Function | Description | Speed |
+|---|---|---|
+| `search()` | Full search across all 2.1M reviews, chunked to avoid RAM overflow | Slowest |
+| `search_within_clusters()` | Filters to relevant clusters first, then searches full 768-dim embeddings | ~10x faster |
+| `search_pca()` | Searches all reviews using PCA-reduced 128-dim embeddings | ~99x faster |
+| `search_pca_within_clusters()` | Cluster filtering + PCA-reduced search — recommended | Fastest |
+
+All functions return detailed restaurant cards including names, similarity match, ratings, borough, descriptions, and clickable Google Maps links.
+
+### Example Usage (Programmatic)
+```python
+import pandas as pd
+import numpy as np
+from src.7_similarity import load_model, load_pca_model, search_pca_within_clusters
+
+reviews = pd.read_parquet('data/processed/review-NYC-restaurant-filtered.parquet')
+meta = pd.read_parquet('data/processed/meta-NYC-restaurant.parquet')
+embeddings_pca = np.load('results/pca/review_embeddings_pca.npy', mmap_mode='r')
+pca = load_pca_model('results/pca/pca_model.pkl')
+centroids = np.load('results/clustering/cluster_centroids.npy')
+clusters = pd.read_csv('results/clustering/restaurant_clusters.csv')
+
+model = load_model()
+results, best_clusters = search_pca_within_clusters(
+    'cozy italian restaurant for a date night',
+    model, pca, embeddings_pca, reviews, meta, centroids, clusters
+)
+print(results)
+```
 
 ## Ranking & ABSA
 
@@ -608,6 +602,7 @@ The following Plotly/Streamlit deprecations have been resolved in `src/app.py`:
 
 6. Planned Features
 - **Similarity-Based Recommendations** — Input a restaurant you like and find the most similar ones using embedding vector search.
+
 ## Repo Structure
 
 ```
@@ -615,55 +610,42 @@ ml-restaurant-recommendation/
 ├── README.md
 ├── requirements.txt
 ├── CLAUDE.md                  # AI assistant instructions for this project
-├── scripts/                   # Non-ranking utility scripts
 ├── documents/
 │   ├── writtenProposal.md
 │   ├── designDocument.md
 │   ├── dataDocumentation.md
 │   ├── brainstorming.md
 │   └── ranking_plan_final.md  # Detailed ranking pipeline design document
-├── data/                      # Not tracked in git
-│   ├── raw/                   # Raw Google Local Reviews JSON files
-│   ├── processed/             # Cleaned data and precomputed artifacts
-│   │   ├── review-NYC-restaurant-filtered.parquet
-│   │   ├── meta-NYC-restaurant.parquet
-│   │   ├── review_embeddings_pca.npy      # PCA-reduced review embeddings (N × 128)
-│   │   ├── pca_model.pkl                  # Fitted PCA model
-│   │   ├── aspect_scores.parquet          # ABSA aspect scores per restaurant
-│   │   ├── word_frequency_top500.csv      # Top-500 word frequencies (Step 0 output)
-│   │   └── aspect_keyword_frequency.csv   # Per-keyword frequency check
-│   └── validation/
-│       ├── sample_sentences.csv           # 100 sentences for manual annotation
-│       └── sample_sentences_labeled.csv   # Human-labeled aspects
+├── data/                      # Large data artifacts (partially LFS tracked)
+│   ├── raw/                   # Raw Google Local Reviews JSON (Excluded)
+│   ├── processed/             # Cleaned datasets and precomputed artifacts
+│   │   ├── ...-filtered.parquet   # Review dataset
+│   │   ├── meta-NYC-....parquet   # Restaurant metadata
+│   │   └── aspect_scores.parquet  # ABSA scores
+│   └── validation/            # Manual annotation datasets
 ├── notebooks/
 │   ├── exploration.ipynb
 │   └── clustering_analysis.ipynb
+├── results/
+│   ├── pca/                   # Production PCA embeddings & models
+│   │   ├── ..._pca.npy (LFS)  # review/meta embeddings
+│   │   ├── pca_model.pkl      (LFS)
+│   │   └── evaluation/        # Recall metrics and tradeoff plots
+│   └── clustering/            # Production cluster assignments
+│       ├── ... (mmap/csv)     # assignments and centroids
+│       └── evaluation/        # Grid search, summaries, map, wordclouds
 ├── src/
 │   ├── 1_data_processing.py   # Data loading, cleaning, filtering
 │   ├── 2_embedding.py         # Sentence embedding generation
-│   ├── 3_search_test_embedding.py  # Full 768-d search test
 │   ├── 4_pca.py               # PCA reduction (768 → 128)
 │   ├── 4a_pca_evaluation.py   # PCA component-count evaluation
-│   ├── 5_search_test_pca.py   # PCA-reduced search test
-│   ├── 6a_clustering_pca.py   # K-Means clustering (Standard)
-│   ├── 6b_clustering_full.py  # K-Means clustering (High-dim)
-│   ├── 6c_clustering_evaluation.py # CONSOLIDATED evaluation & viz
+│   ├── 6c_clustering_evaluation.py # Consolidated evaluation & viz
 │   ├── 7_similarity.py        # Production search engine
 │   ├── app.py                 # Interactive Map UI
-│   └── 8_ranking/             # Re-Ranking & Sentiment package
-└── results/
-    ├── pca/                   # Production PCA embeddings & models
-    │   ├── review_embeddings_pca.npy
-    │   ├── meta_embeddings_pca.npy
-    │   ├── pca_model.pkl
-    │   └── evaluation/        # PCA metrics and tradeoff plots
-    └── clustering/            # Production cluster assignments
-        ├── restaurant_clusters.csv
-        ├── cluster_centroids.npy
-        └── evaluation/        # Grid search, summaries, and wordclouds
-            ├── cluster_summary.json
-            ├── clustering_scores.csv
-            ├── silhouette_vs_k.png
-            ├── cluster_map.html
-            └── wordclouds/
+│   ├── 8_ranking/             # Re-Ranking & Sentiment package
+│   │   ├── absa.py            # Aspect-Based Sentiment logic
+│   │   ├── demo_search.py     # Streamlit ranking demo
+│   │   └── scripts/           # Pipeline run scripts (Step 0-3)
+│   └── deprecated/            # Legacy and merged scripts
+└── .gitattributes             # Git LFS configuration
 ```
