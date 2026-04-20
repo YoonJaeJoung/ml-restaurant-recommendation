@@ -129,11 +129,13 @@ def select_english_text(text):
     
     # New logic: Discard reviews that still contain Chinese after stripping
     if is_contains_chinese(result_text):
+        with open("chinese_removed_log.txt", "a", encoding="utf-8") as f:
+            f.write(repr(result_text) + "\n\n")
         return ""
         
     return result_text
 
-def filter_reviews(input_path, output_path, min_reviews=15, max_reviews=500):
+def filter_reviews(input_path, output_path, min_reviews=30, max_reviews=500):
     print("Loading data for filtering...")
     review_df = pd.read_parquet(input_path)
     print(f"Original shape: {len(review_df)}")
@@ -146,7 +148,7 @@ def filter_reviews(input_path, output_path, min_reviews=15, max_reviews=500):
     review_df = review_df[review_df["text_for_embedding"].str.strip().str.len() > 0].copy()
     print(f"Shape after filtering non-English: {len(review_df)}")
 
-    # 2. Filter out restaurants with too few VALID reviews (> min_reviews)
+    # 2. Filter out restaurants with too few VALID reviews (> 30)
     print(f"Filtering: keeping only restaurants with > {min_reviews} valid reviews...")
     review_counts = review_df.groupby('gmap_id').size()
     valid_gmap_ids = review_counts[review_counts > min_reviews].index
@@ -154,13 +156,10 @@ def filter_reviews(input_path, output_path, min_reviews=15, max_reviews=500):
     review_df = review_df[review_df['gmap_id'].isin(valid_gmap_ids)]
     print(f"After min_reviews shape: {len(review_df)}")
 
-    # 3. Downsampling: Sort by review detail (length) and keep at most max_reviews (<= 500)
+    # 3. Downsampling: Keep at most max_reviews per restaurant (<= 500)
     if max_reviews is not None:
-        print(f"Downsampling: keeping maximum {max_reviews} most detailed reviews per restaurant...")
-        review_df['_text_len'] = review_df['text_for_embedding'].str.len()
-        review_df = review_df.sort_values(['gmap_id', '_text_len'], ascending=[True, False])
+        print(f"Downsampling: keeping maximum {max_reviews} reviews per restaurant...")
         review_df = review_df.groupby('gmap_id').head(max_reviews).reset_index(drop=True)
-        review_df = review_df.drop(columns=['_text_len'])
         print(f"Final shape after max limit: {len(review_df)}")
 
     # 4. Save the filtered dataframe
@@ -329,7 +328,7 @@ def process_restaurant_data(
     # ---------------------------------------------------------
     # 3. Filter Reviews
     # ---------------------------------------------------------
-    filter_reviews(reviews_output_path, reviews_filtered_output_path, min_reviews=15, max_reviews=500)
+    filter_reviews(reviews_output_path, reviews_filtered_output_path, min_reviews=30, max_reviews=500)
 
 if __name__ == "__main__":
     process_restaurant_data(
