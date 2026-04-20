@@ -140,19 +140,27 @@ def filter_reviews(input_path, output_path, min_reviews=15, max_reviews=500):
 
     # 1. Extract English text (and filter non-English Chinese reviews)
     print("Extracting English text (stripping (Translated by Google) and filtering Chinese)...")
+    n_initial_restaurants = review_df['gmap_id'].nunique()
     review_df["text_for_embedding"] = review_df["text"].map(select_english_text)
     
     # Remove rows where text_for_embedding is empty (non-English or empty reviews)
     review_df = review_df[review_df["text_for_embedding"].str.strip().str.len() > 0].copy()
-    print(f"Shape after filtering non-English: {len(review_df)}")
+    n_after_english_filter = review_df['gmap_id'].nunique()
+    print(f"  Unique restaurants before English/Chinese filter: {n_initial_restaurants:,}")
+    print(f"  Unique restaurants AFTER English/Chinese filter: {n_after_english_filter:,}")
+    print(f"  Shape after filtering non-English: {len(review_df):,}")
 
     # 2. Filter out restaurants with too few VALID reviews (> min_reviews)
     print(f"Filtering: keeping only restaurants with > {min_reviews} valid reviews...")
     review_counts = review_df.groupby('gmap_id').size()
     valid_gmap_ids = review_counts[review_counts > min_reviews].index
 
+    n_before_cutoff = review_df['gmap_id'].nunique()
     review_df = review_df[review_df['gmap_id'].isin(valid_gmap_ids)]
-    print(f"After min_reviews shape: {len(review_df)}")
+    n_after_cutoff = review_df['gmap_id'].nunique()
+    print(f"  Unique restaurants before {min_reviews} cutoff: {n_before_cutoff:,}")
+    print(f"  Unique restaurants AFTER {min_reviews} cutoff: {n_after_cutoff:,}")
+    print(f"  After min_reviews row shape: {len(review_df):,}")
 
     # 3. Downsampling: Sort by review detail (length) and keep at most max_reviews (<= 500)
     if max_reviews is not None:
@@ -191,8 +199,12 @@ def process_restaurant_data(
     if not os.path.exists(meta_output_path):
         print("Processing Metadata...")
         meta_records = []
+        n_permanently_closed = 0
+        total_processed = 0
+        
         with gzip.open(meta_input_path, 'rt', encoding='utf-8') as f_in:
             for line in f_in:
+                total_processed += 1
                 try:
                     row = json.loads(line)
                 except json.JSONDecodeError:
@@ -212,8 +224,13 @@ def process_restaurant_data(
                             
                 if not is_restaurant:
                     continue
+
+                # Filter 3: Skip permanently closed businesses
+                if row.get('state') == 'Permanently closed':
+                    n_permanently_closed += 1
+                    continue
                     
-                # Filter 3: Determine borough
+                # Filter 4: Determine borough
                 parts = address.split(", ")
                 if len(parts) >= 2:
                     neighborhood = parts[-2]
@@ -227,7 +244,10 @@ def process_restaurant_data(
 
         df_meta = pd.DataFrame(meta_records)
         df_meta.to_parquet(meta_output_path, engine='pyarrow', index=False)
-        print(f"Saved {len(df_meta)} metadata records to {meta_output_path}")
+        print(f"Metadata Processing Summary:")
+        print(f"  Total raw records scanned: {total_processed:,}")
+        print(f"  Restaurants skipped (Permanently closed): {n_permanently_closed:,}")
+        print(f"  Valid open restaurants saved: {len(df_meta):,}")
     else:
         print(f"Metadata already exists at {meta_output_path}. Loading...")
         df_meta = pd.read_parquet(meta_output_path)
