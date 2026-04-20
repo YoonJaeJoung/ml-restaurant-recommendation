@@ -291,6 +291,195 @@ With PCA-reduced embeddings in place, run the final search pipeline:
 
 Compared to the full-embedding search, the PCA-based search is significantly faster and uses a fraction of the memory, making it practical for iterative experimentation and real-time queries.
 
+## Ranking & ABSA
+
+Layers 2–3 of the recommendation pipeline: aspect-based sentiment scoring and personalised re-ranking of the candidates returned by semantic search.
+
+### Architecture
+
+```
+Layer 1  src/similarity.py          → top-100 candidate restaurants (semantic search)
+Layer 2  src/ranking/absa.py        → per-restaurant aspect scores (offline precompute)
+Layer 3  src/ranking/__init__.py    → final_score = α·avg_rating_norm
+                                                   + β·aspect_weighted_norm
+                                                   + γ·log(1+num_reviews)_norm
+```
+
+All ranking code lives in the `src/ranking/` package:
+
+| File | Description |
+|---|---|
+| `src/ranking/__init__.py` | `rank_candidates`, `add_price_tier_score`, `sensitivity_analysis` |
+| `src/ranking/absa.py` | ABSA precompute, `get_aspect_prefs`, validation helpers |
+| `src/ranking/demo_search.py` | Standalone Streamlit search demo |
+| `src/ranking/scripts/` | Numbered run scripts (see pipeline below) |
+
+`src/absa.py` is a backward-compatibility shim that re-exports from `src/ranking/absa.py`.
+
+---
+
+### ABSA Score Semantics
+
+Aspect scores are produced by **VADER compound sentiment** on keyword-matched review clauses, then **Bayesian-smoothed** using global priors, and finally **min-max normalized to [0, 1]** within each candidate set at ranking time.
+
+**Score direction:**
+- `price` high score → **cheap / good value** (not expensive)
+- `wait_time` high score → **short wait** (not crowded/slow)
+- `food`, `service` high score → positive sentiment
+
+This means high scores always = user-desirable, so no sign-flip is needed after applying user weights.
+
+---
+
+### Aspect Keywords
+
+Four aspects tracked (`ASPECT_KEYWORDS` in `src/ranking/absa.py`):
+
+| Aspect | Example keywords |
+|---|---|
+| `food` | pizza, ramen, sushi, burger, taste, flavor, portion, … (42 keywords) |
+| `service` | service, staff, waiter, friendly, attentive, rude, helpful, … |
+| `price` | cheap, expensive, affordable, value, overpriced, reasonable, … |
+| `wait_time` | wait, line, queue, slow, quick, fast, crowded, minutes, … |
+
+`ambience` was removed after human validation showed only 28.6% recall — keyword coverage in review text was insufficient.
+
+Keywords were validated via word-frequency analysis on the full review corpus (Step 0).
+
+---
+
+### Query Intent Parsing
+
+`get_aspect_prefs(query)` infers aspect importance from a natural-language query.
+
+**Design decisions:**
+- **Mention = important**: any keyword hit adds `+POSITIVE_BOOST (0.20)` to that aspect's weight. Negation is intentionally ignored — "no long wait" and "fast service" both mean the user cares about wait time. The ABSA scores already encode direction (high wait_time = short wait), so there is no need to detect whether the user wants more or less of each aspect.
+- **Default weights** (used when no keywords detected):
+
+| Aspect | Default weight |
+|---|---|
+| `food` | 0.40 |
+| `service` | 0.30 |
+| `price` | 0.20 |
+| `wait_time` | 0.10 |
+
+---
+
+### Per-Aspect Normalization
+
+Before computing `aspect_weighted = Σ user_pref[aspect] × score[aspect]`, each aspect is **independently min-max normalized within the candidate set**. This ensures that different baseline means across aspects (e.g. `wait_time` is systematically lower due to negativity bias in reviews, `price` is higher after tier blending) do not distort the effect of user weights. Without this step, setting a high `wait_time` weight would have less effect than the same weight on `price`, because the raw score ranges differ.
+
+---
+
+### Google Maps Price Tier Fusion
+
+In addition to ABSA price sentiment, we fuse the Google Maps price tier (`$`/`$$`/`$$$`/`$$$$`) into the `price` dimension:
+
+| Tier | Score |
+|---|---|
+| `$` | 1.0 |
+| `$$` | 0.75 |
+| `$$$` | 0.25 |
+| `$$$$` | 0.0 |
+| missing | 0.5 (neutral) |
+
+The final price score is: `0.5 × absa_price_normalized + 0.5 × tier_score`
+
+This ensures that cheap restaurants get a price bonus even when reviewers don't explicitly mention cost — common for budget restaurants where customers already expect low prices and don't comment on them.
+
+---
+
+### Ranking Formula
+
+```
+final_score = α × avg_rating_norm
+            + β × aspect_weighted_norm
+            + γ × log(1 + num_reviews)_norm
+```
+
+**Baseline weights** (selected via sensitivity analysis):
+
+| Parameter | Value | Role |
+|---|---|---|
+| α | 0.4 | Google rating signal |
+| β | 0.5 | Aspect-weighted ABSA score |
+| γ | 0.1 | Review count (popularity) |
+
+All three components are independently min-max normalized within the candidate set before combining. The `demo_search.py` UI auto-normalizes α/β/γ if the user adjusts them, so they don't need to sum to 1 manually.
+
+---
+
+### Four-Batch Execution Pipeline
+
+The ranking system was built and validated in four human-gated batches:
+
+```
+Batch 1 ──────────────────────────────────────────────────────────
+  ①  Build all functions (Steps 0–5 code in src/ranking/)
+  ②  Run frequency_analysis() → inspect word counts
+      ↓
+      [Human] Review frequency output → decide ASPECT_KEYWORDS updates
+
+Batch 2 ──────────────────────────────────────────────────────────
+  ③  Run precompute_all_aspect_scores() with updated keywords
+      → data/processed/aspect_scores.parquet  (~1–2 h, 21,296 restaurants)
+  ④  Sample 100 sentences → data/validation/sample_sentences.csv
+      ↓
+      [Human] Manually label 'aspects' column (before viewing system output
+               to avoid confirmation bias)
+
+Batch 3 ──────────────────────────────────────────────────────────
+  ⑤  validate_absa_accuracy() + validate_query_detection()
+  ⑥  sensitivity_analysis() → α/β/γ comparison table
+      → results/sensitivity_analysis.csv
+      ↓
+      [Human] Choose α/β/γ combination
+
+Batch 4 ──────────────────────────────────────────────────────────
+  ⑦  Run demo with selected weights → top-5 per query
+      → results/sensitivity_latest_blind.csv  (weight_set hidden)
+      ↓
+      [Human] Score results 0/1/2 (relevance to query + aspect match)
+  ⑧  Compute per-weight-set average → final report
+```
+
+Run scripts in order from the project root:
+
+```bash
+python src/ranking/scripts/step0_frequency_analysis.py
+python src/ranking/scripts/step1_precompute.py
+python src/ranking/scripts/step2_validation.py
+python src/ranking/scripts/step3_sensitivity_demo.py
+```
+
+---
+
+### Interactive Search Demo
+
+```bash
+streamlit run src/ranking/demo_search.py
+```
+
+Features:
+- Natural-language query → semantic search → top-100 candidates
+- Auto-detected aspect preferences displayed as adjustable sliders (food / service / price / wait time)
+- α / β / γ ranking weight expander (auto-normalized)
+- Results shown on map + sortable table with price tier (`$`/`$$`) column
+- Every new search resets all sliders to auto-detected values
+
+---
+
+### Output Files
+
+| File | Description |
+|---|---|
+| `data/processed/aspect_scores.parquet` | Per-restaurant ABSA scores (Batch 2 output) |
+| `data/validation/sample_sentences.csv` | 100 sentences for manual annotation |
+| `data/validation/sample_sentences_labeled.csv` | Human-labeled annotation file |
+| `results/sensitivity_analysis.csv` | α/β/γ grid search results |
+| `results/sensitivity_latest.csv` | Per-query top-5 with weight_set labels |
+| `results/sensitivity_latest_blind.csv` | Blind version for human scoring |
+
 ## 🍕 NYC Restaurant Explorer: Interactive Map（Frame, more functions coming...）
 1. Features
 - **Interactive Map** — Restaurants are plotted on a Mapbox map using latitude/longitude coordinates, color-coded by cluster category using a discrete color palette.
@@ -344,61 +533,85 @@ Rows with missing `latitude` or `longitude` values are automatically dropped on 
 From the project root directory, run:
 
 ```bash
-streamlit run app.py
+streamlit run src/app.py
 ```
-The app will open in your browser at by default
+The app will open in your browser at `http://localhost:8501` by default.
 
-5. Planned Features
+5. API Notes
+
+The following Plotly/Streamlit deprecations have been resolved in `src/app.py`:
+
+- `px.scatter_mapbox` → `px.scatter_map` (Plotly MapLibre migration)
+- `mapbox_style` → `map_style` in `fig.update_layout()`
+- `use_container_width=True` → `width='stretch'` (Streamlit, removed after 2025-12-31)
+
+6. Planned Features
 - **Similarity-Based Recommendations** — Input a restaurant you like and find the most similar ones using embedding vector search.
 ## Repo Structure
 
 ```
 ml-restaurant-recommendation/
-├── README.md                  # Project overview and documentation
-├── requirements.txt           # Python dependencies
-├── scripts/                   # Utility scripts
-│   └── merge_embedding_shards.py  # Merge review embedding shards into one .npy
-├── documents/                 # Project planning and documentation
-│   ├── writtenProposal.md     # Written proposal (problem + methods)
-│   ├── designDocument.md      # Design document (structure, labor, stubs)
-│   ├── dataDocumentation.md   # Dataset documentation and exploration notes
-│   └── brainstorming.md       # Feature and method brainstorming
-├── data/                      # Data directory (not tracked in git)
-│   ├── raw/                   # Raw data files (e.g., Google Local Reviews JSON)
-│   └── processed/             # Cleaned and processed data
-│       ├── review_embeddings.npy          # Full 768-d review embeddings
-│       ├── meta_embeddings.npy            # Full 768-d metadata embeddings
-│       ├── review_embeddings_pca.npy      # PCA-reduced review embeddings
-│       ├── meta_embeddings_pca.npy        # PCA-reduced metadata embeddings
-│       └── pca_model.pkl                  # Fitted PCA model (for query projection)
-├── notebooks/                 # Jupyter notebooks for exploration and analysis
-│   ├── exploration.ipynb      # Initial data exploration notebook
-│   └── clustering_analysis.ipynb  # Clustering results analysis and visualization
-├── src/                       # Source code modules
-│   ├── 0_data_processing.py   # Data loading, cleaning, and preprocessing
-│   ├── 1_embedding.py         # Sentence embedding generation
-│   ├── 2_filter_reivews.py    # Filter review datasets
-│   ├── 3_search_test_embedding.py  # Semantic search using full embeddings
-│   ├── 4_pca.py               # PCA dimensionality reduction on embeddings
-│   ├── 4a_pca_evaluation.py   # PCA component-count evaluation & tradeoff analysis
-│   ├── 5_search_test_pca.py   # Semantic search using PCA-reduced embeddings
-│   ├── clustering.py          # K-Means / GMM clustering
-│   ├── similarity.py          # Cosine similarity and retrieval
-│   ├── ranking.py             # Supervised ranking model (logistic regression)
-│   ├── user_profile.py        # User profile and preference management
-│   ├── evaluation.py          # Model evaluation metrics and utilities
-│   └── app.py                 # Interactive application / map overlay interface
-└── results/                   # Output results, figures, and model artifacts
-    ├── clustering/            # Clustering outputs
-    │   ├── restaurant_clusters.csv        # Cluster label for each restaurant
-    │   ├── cluster_summary.json           # Per-cluster keywords and statistics
-    │   ├── cluster_centroids.npy          # Mean embedding per cluster (50, 768)
+├── README.md
+├── requirements.txt
+├── CLAUDE.md                  # AI assistant instructions for this project
+├── scripts/                   # Non-ranking utility scripts
+│   ├── merge_embedding_shards.py      # Merge review embedding shards into one .npy
+│   └── filter_reviews_match_embedding.py  # Align review parquet with embedding index
+├── documents/
+│   ├── writtenProposal.md
+│   ├── designDocument.md
+│   ├── dataDocumentation.md
+│   ├── brainstorming.md
+│   └── ranking_plan_final.md  # Detailed ranking pipeline design document
+├── data/                      # Not tracked in git
+│   ├── raw/                   # Raw Google Local Reviews JSON files
+│   ├── processed/             # Cleaned data and precomputed artifacts
+│   │   ├── review-NYC-restaurant-filtered.parquet
+│   │   ├── meta-NYC-restaurant.parquet
+│   │   ├── review_embeddings_pca.npy      # PCA-reduced review embeddings (N × 128)
+│   │   ├── pca_model.pkl                  # Fitted PCA model
+│   │   ├── aspect_scores.parquet          # ABSA aspect scores per restaurant
+│   │   ├── word_frequency_top500.csv      # Top-500 word frequencies (Step 0 output)
+│   │   └── aspect_keyword_frequency.csv   # Per-keyword frequency check
+│   └── validation/
+│       ├── sample_sentences.csv           # 100 sentences for manual annotation
+│       └── sample_sentences_labeled.csv   # Human-labeled aspects
+├── notebooks/
+│   ├── exploration.ipynb
+│   └── clustering_analysis.ipynb
+├── src/
+│   ├── 0_data_processing.py   # Data loading, cleaning, borough assignment
+│   ├── 1_embedding.py         # Sentence embedding generation (nomic-embed-text-v1.5)
+│   ├── 2_filter_reivews.py    # Filter & align review parquet with embedding index
+│   ├── 3_search_test_embedding.py  # Semantic search on full 768-d embeddings (baseline)
+│   ├── 4_pca.py               # PCA dimensionality reduction (768 → 128)
+│   ├── 4a_pca_evaluation.py   # PCA component-count evaluation (recall@10, speedup)
+│   ├── 5_search_test_pca.py   # Semantic search on PCA-reduced embeddings
+│   ├── clustering.py          # K-Means / GMM clustering on combined features
+│   ├── similarity.py          # Cosine similarity, cluster-aware search, PCA search
+│   ├── absa.py                # Shim → re-exports from src/ranking/absa.py
+│   ├── evaluation.py          # Model evaluation metrics
+│   ├── user_profile.py        # User profile management
+│   ├── app.py                 # Interactive map explorer (streamlit run src/app.py)
+│   └── ranking/               # Ranking & ABSA package
+│       ├── __init__.py        # rank_candidates, add_price_tier_score, sensitivity_analysis
+│       ├── absa.py            # ABSA precompute, get_aspect_prefs, validation
+│       ├── demo_search.py     # Interactive search + ranking demo (streamlit run)
+│       └── scripts/           # Run in order from project root
+│           ├── step0_frequency_analysis.py  # Validate ASPECT_KEYWORDS vs corpus
+│           ├── step1_precompute.py          # Precompute aspect scores (~1–2 h)
+│           ├── step2_validation.py          # ABSA accuracy + sensitivity analysis
+│           └── step3_sensitivity_demo.py    # Compare α/β/γ weight sets
+└── results/
+    ├── clustering/
+    │   ├── restaurant_clusters.csv        # Cluster label (0–49) per restaurant
+    │   ├── cluster_summary.json           # Per-cluster keywords and stats
+    │   ├── cluster_centroids.npy          # Mean meta embedding per cluster (50, 768)
     │   ├── clustering_scores.csv          # Silhouette scores for all 36 experiments
-    │   ├── clustering_scores_extended.csv # Extended experiment results
-    │   ├── cluster_visualization.html     # Interactive 2D scatter plot
-    │   ├── silhouette_vs_k.png            # Silhouette score vs k curve
-    │   ├── best_cluster_distribution.png  # Cluster size distribution
-    │   ├── cluster_comparison_umap.png    # UMAP visualization
-    │   └── cluster_rating_size.png        # Cluster rating vs size plot
-    └── review_analysis_report.csv         # Review data analysis report
+    │   ├── cluster_visualization.html     # Interactive 2D UMAP scatter plot
+    │   └── …
+    ├── sensitivity_analysis.csv           # α/β/γ grid search results
+    ├── sensitivity_latest.csv             # Per-query top-5 with weight labels
+    ├── sensitivity_latest_blind.csv       # Blind version for human scoring
+    └── review_analysis_report.csv
 ```
