@@ -20,8 +20,8 @@ from src.8_ranking import rank_candidates, add_price_tier_score
 # ── Paths ─────────────────────────────────────────────────────────────────────
 REVIEWS_PATH   = "data/processed/review-NYC-restaurant-filtered.parquet"
 META_PATH      = "data/processed/meta-NYC-restaurant.parquet"
-EMB_PCA_PATH   = "data/processed/review_embeddings_pca.npy"
-PCA_MODEL_PATH = "data/processed/pca_model.pkl"
+EMB_PCA_PATH   = "results/pca/review_embeddings_pca.npy"
+PCA_MODEL_PATH = "results/pca/pca_model.pkl"
 CENTROIDS_PATH = "results/clustering/cluster_centroids.npy"
 CLUSTERS_PATH  = "results/clustering/restaurant_clusters.csv"
 SCORES_PATH    = "data/processed/aspect_scores.parquet"

@@ -1,23 +1,26 @@
 # ML Restaurant Recommendation - Dependencies
+
+# Core Data & ML
 pandas
 numpy
+scipy
 scikit-learn
 sentence-transformers
-matplotlib
-seaborn
-ipykernel
-scipy
+torch
+joblib
 pyarrow
 fastparquet
+
+# Visualization
+matplotlib
+seaborn
+plotly
+wordcloud
+pillow
+ipykernel
+
+# App & Ranking
 streamlit
 pydeck
-# for map
-folium
-plotly
-dash>=2.14.0
-dash-leaflet
-pandas
-numpy
-# for ABSA ranking pipeline
 nltk
 vaderSentiment

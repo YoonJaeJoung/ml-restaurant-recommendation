@@ -1,13 +1,14 @@
 # Data
 data/raw/*
 !data/raw/.gitkeep
-data/processed/*
-!data/processed/.gitkeep
 
-# Large generated data formats
-*.parquet
-*.npy
-*.pkl
+# Exclude large raw embeddings
+data/processed/review_embeddings.npy
+data/processed/meta_embeddings.npy
+
+# Track all other processed data (some via Git LFS)
+# Removed data/processed/* exclusion
+# Removed global *.npy, *.parquet, *.pkl exclusions
 # Python
 __pycache__/
 *.py[cod]

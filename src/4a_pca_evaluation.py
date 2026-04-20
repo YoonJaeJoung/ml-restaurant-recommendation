@@ -29,13 +29,62 @@ import joblib
 import matplotlib
 matplotlib.use("Agg")          # headless backend – safe for scripts
 import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
+import torch
+import importlib
+
+# Attempt to load cuML for GPU-accelerated PCA
+CUML_AVAILABLE = False
+try:
+    import cuml
+    CUML_AVAILABLE = True
+except ImportError:
+    pass
+
+class TorchPCA:
+    """Fallback GPU PCA implementation using PyTorch linalg.svd."""
+    def __init__(self, n_components, random_state=42):
+        self.n_components = n_components
+        self.components_ = None
+        self.explained_variance_ratio_ = None
+
+    def fit(self, X):
+        # Move to GPU in chunks if X is numpy memmap
+        n, d = X.shape
+        X_torch = torch.from_numpy(X).to("cuda", non_blocking=True)
+        # Center the data
+        self.mean_ = X_torch.mean(dim=0)
+        X_centered = X_torch - self.mean_
+        
+        # SVD on the GPU
+        U, S, V = torch.linalg.svd(X_centered, full_matrices=False)
+        self.components_ = V[:self.n_components].cpu().numpy()
+        
+        # Calculate explained variance
+        variances = (S**2) / (n - 1)
+        total_var = variances.sum()
+        self.explained_variance_ratio_ = (variances[:self.n_components] / total_var).cpu().numpy()
+        return self
+
+    def transform(self, X):
+        n, d = X.shape
+        X_torch = torch.from_numpy(X).to("cuda", non_blocking=True)
+        X_centered = X_torch - self.mean_
+        V = torch.from_numpy(self.components_).to("cuda", non_blocking=True).T
+        return (X_centered @ V).cpu().numpy()
+
+def get_pca_model(n_components):
+    if CUML_AVAILABLE:
+        print(f"  [GPU] Using cuML.PCA(n_components={n_components})")
+        return cuml.PCA(n_components=n_components)
+    else:
+        print(f"  [GPU] cuML not found. Using TorchPCA fallback.")
+        return TorchPCA(n_components=n_components)
 
 # ─────────────────── Configuration ───────────────────
 INPUT_DIR       = "./data/processed"
-OUTPUT_DIR      = "./results"
+OUTPUT_DIR      = "./results/pca/evaluation"
 MODEL_NAME      = "nomic-ai/nomic-embed-text-v1.5"
 CHUNK_SIZE      = 100_000       # rows per PCA-transform batch
 SEARCH_K        = 50            # top-k reviews to retrieve
@@ -55,17 +104,19 @@ BENCHMARK_QUERIES = [
 ]
 # ─────────────────────────────────────────────────────
 
-
 def load_data():
     """Load review embeddings, review df, meta df."""
-    print("Loading review embeddings (mmap) ...")
-    emb_path = os.path.join(INPUT_DIR, "review_embeddings.npy")
-    review_embeddings = np.load(emb_path, mmap_mode="r")
-    print(f"  shape: {review_embeddings.shape}")
+    print("Loading review parquet for shape detection...")
+    review_path = os.path.join(INPUT_DIR, "review-NYC-restaurant-filtered.parquet")
+    reviews = pd.read_parquet(review_path)
+    n_reviews = len(reviews)
+    dim = 768
 
-    print("Loading review parquet ...")
-    reviews = pd.read_parquet(os.path.join(INPUT_DIR, "review-NYC-restaurant-filtered.parquet"))
-    print(f"  {len(reviews):,} reviews")
+    print(f"Loading review embeddings (raw memmap, {n_reviews:,} rows) ...")
+    emb_path = os.path.join(INPUT_DIR, "review_embeddings.npy")
+    # review_embeddings.npy is headerless raw binary saved via memmap
+    review_embeddings = np.memmap(emb_path, dtype='float32', mode="r", shape=(n_reviews, dim))
+    print(f"  shape: {review_embeddings.shape}")
 
     print("Loading meta parquet ...")
     meta = pd.read_parquet(os.path.join(INPUT_DIR, "meta-NYC-restaurant.parquet"))
@@ -203,7 +254,7 @@ def main():
 
         # Fit PCA
         t_fit_start = time.perf_counter()
-        pca = PCA(n_components=n_comp, random_state=42)
+        pca = get_pca_model(n_comp)
         pca.fit(review_embeddings)
         t_fit = time.perf_counter() - t_fit_start
         explained_var = pca.explained_variance_ratio_.sum() * 100
@@ -290,14 +341,19 @@ def main():
 
     # Save as JSON too for easy programmatic use
     json_path = os.path.join(OUTPUT_DIR, "pca_evaluation_results.json")
+    # Convert numpy types to native python types for JSON serialization
+    serialized_records = []
+    for r in records:
+        serialized_records.append({k: (float(v) if isinstance(v, (np.float32, np.float64)) else v) for k, v in r.items()})
+    
     with open(json_path, "w") as f:
         json.dump({
-            "baseline_avg_query_time_s": round(baseline_avg_time, 3),
-            "original_dim": original_dim,
-            "original_size_mb": round(original_size_mb, 1),
-            "alpha": ALPHA,
+            "baseline_avg_query_time_s": round(float(baseline_avg_time), 3),
+            "original_dim": int(original_dim),
+            "original_size_mb": round(float(original_size_mb), 1),
+            "alpha": float(ALPHA),
             "best_n_components": int(best["n_components"]),
-            "results": records,
+            "results": serialized_records,
         }, f, indent=2)
     print(f"Saved evaluation JSON  → {json_path}")
 
@@ -367,7 +423,7 @@ def main():
     # Fit once with max components to show the scree / elbow curve
     print("\nFitting PCA with max components for scree plot ...")
     max_comp = min(512, original_dim, n_reviews)
-    pca_full = PCA(n_components=max_comp, random_state=42)
+    pca_full = get_pca_model(max_comp)
     pca_full.fit(review_embeddings)
     cumvar = np.cumsum(pca_full.explained_variance_ratio_) * 100
 

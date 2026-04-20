@@ -48,6 +48,10 @@ This project uses `uv` for dependency management. To set up the local environmen
    ```bash
    uv pip install -r requirements.txt
    ```
+5. **Install Git LFS** (required for large data files):
+   - Install Git LFS: `brew install git-lfs`
+   - Initialize in repo: `git lfs install`
+   - Pull large files: `git lfs pull`
  
 ## Data Download Instructions
 
@@ -72,6 +76,11 @@ The raw dataset used for this project (Google Local Reviews) is extremely large 
    - **Dynamic Threshold**: Currently set to keep restaurants with at least **15 valid English reviews**.
    
    The output is saved to `data/processed/meta-NYC-restaurant.parquet` and `data/processed/review-NYC-restaurant-filtered.parquet`.
+
+   > [!IMPORTANT]
+   > **Data Versioning Notice**: Most processed artifacts (Parquets, PCA embeddings) are tracked in this repository using **Git LFS**. However, the following are **EXCLUDED** from version control due to extreme size:
+   > - `data/raw/` (Raw JSON sources)
+   > - `data/processed/review_embeddings.npy` (6.2GB Full Embedding Matrix)
 
 ## Generating Embeddings
 
@@ -151,7 +160,7 @@ python src/4_pca.py
 | `N_COMPONENTS` | `128` | Target dimensionality after reduction |
 | `CHUNK_SIZE` | `100,000` | Rows transformed per batch (controls peak RAM) |
 
-**Output files** (saved to `data/processed/`):
+**Output files** (saved to `results/pca/`):
 
 | File | Description |
 |---|---|
@@ -178,17 +187,47 @@ python src/4a_pca_evaluation.py
 | 16 | 58.3% | 10% | 194× | 229 MB | 0.452 |
 | 32 | 66.1% | 22% | 160× | 457 MB | 0.515 |
 | 64 | 74.9% | 38% | 151× | 915 MB | 0.595 |
-| **128** | **84.4%** | **54%** | **99×** | **1.8 GB** | **0.657** |
+| **128** | **75.5%** | **54%** | **99×** | **1.8 GB** | **0.657** |
 | 256 | 93.5% | 48% | 50× | 3.7 GB | 0.555 |
 | 384 | 97.5% | 48% | 34× | 5.5 GB | 0.488 |
 | 512 | 99.2% | 50% | 20× | 7.3 GB | 0.433 |
 
-**Result:** `n_components = 128` achieves the best tradeoff — **84.4%** explained variance, the highest recall (**54%**), a **99× speedup** (0.6 s vs 60.6 s per query), and an **83% size reduction** (1.8 GB vs 10.9 GB). Notably, recall *peaks* at 128 and decreases for higher component counts, suggesting that moderate PCA regularization filters out noise in the embedding space.
+**Result:** `n_components = 128` achieves the best tradeoff — **75.5%** explained variance, the highest recall (**54%**), a **99× speedup** (0.6 s vs 60.6 s per query), and an **83% size reduction** (1.8 GB vs 10.9 GB). Notably, recall *peaks* at 128 and decreases for higher component counts, suggesting that moderate PCA regularization filters out noise in the embedding space.
 
-Detailed results and tradeoff plots are saved to `results/`:
+Detailed results and tradeoff plots are saved to `results/pca/evaluation/`:
 - `pca_evaluation_results.csv` / `.json` — full metrics table.
 - `pca_tradeoff_analysis.png` — four-panel chart (explained variance, accuracy vs. compression, latency, composite score).
 - `pca_scree_curve.png` — cumulative explained variance elbow curve.
+
+### Final Production Evaluation (Cleaned Dataset)
+
+**Date**: 2026-04-20
+**Hardware**: NVIDIA Tesla T4 GPU (Lightning AI)
+**Framework**: RAPIDS cuML (GPU-Accelerated PCA)
+
+#### Cleaning & Filtering Parameters
+To ensure highest recommendation quality for NYC restaurants, the following filters were applied to the **final production dataset**:
+- **Language Filtering**: Removed CJK (Chinese/Japanese/Korean) characters from reviews for semantic consistency.
+- **Museum/Status Filtering**: Excluded "Permanently closed" establishments.
+- **Engagement Threshold**: Standardized on **min 15 reviews** per restaurant (Total: **19,532** restaurants).
+
+#### Performance Benchmarks (Full 2.15M Reviews)
+Evaluation performed using the T4 GPU on the full 2.15 million review set.
+
+| n_components | Explained Var | Recall@10 | Speedup | Size |
+|:---:|:---:|:---:|:---:|:---:|
+| 16 | 35.4% | 0% | 15.6x | 132 MB |
+| 32 | 47.2% | 6% | 8.4x | 263 MB |
+| 64 | 60.9% | 30% | 5.9x | 527 MB |
+| **128** | **75.8%** | **44%** | **3.2x** | **1.1 GB** |
+| **256** | **89.9%** | **56%** | **1.2x** | **2.1 GB** |
+| 384 | 96.2% | 66% | 0.7x | 3.2 GB |
+| 512 | 98.8% | 68% | 0.2x | 4.2 GB |
+
+**Analysis**:
+- **Semantic Coverage**: 128 components capture **75.8%** of the variance in the production database. 
+- **Efficiency**: GPU mapping of 2 million rows now takes only **20.6s**, enabling rapid iteration on the full Google Maps NYC dataset.
+- **Sweet Spot**: `n_components=256` provides the best recall-to-size tradeoff on the full data, while `128` remains the most efficient for low-latency production use.
 
 ## Semantic Search
 
@@ -196,7 +235,7 @@ With embeddings and PCA in place, the semantic search module (`src/7_similarity.
 
 | Function | Description | Speed |
 |---|---|---|
-| `search()` | Full search across all 3.7M reviews, chunked to avoid RAM overflow | Slowest |
+| `search()` | Full search across all 2.1M reviews, chunked to avoid RAM overflow | Slowest |
 | `search_within_clusters()` | Filters to relevant clusters first, then searches full 768-dim embeddings | ~10x faster |
 | `search_pca()` | Searches all reviews using PCA-reduced 128-dim embeddings | ~99x faster |
 | `search_pca_within_clusters()` | Cluster filtering + PCA-reduced search — recommended | Fastest |
@@ -205,11 +244,11 @@ All functions take a natural language query string and return a dataframe with:
 `name`, `avg_similarity`, `avg_rating`, `borough`, `latitude`, `longitude`, `gmap_id`
 
 ### Required Files
-- `data/processed/review-NYC-restaurant-filtered.parquet` — filtered reviews (run `scripts/1_data_processing.py`)
-- `data/processed/review_embeddings_pca.npy` — PCA-reduced embeddings (run `src/4_pca.py`)
-- `data/processed/pca_model.pkl` — fitted PCA model (run `src/4_pca.py`)
-- `results/clustering/cluster_centroids.npy` — cluster centroids (run `src/6_clustering.py`)
-- `results/clustering/restaurant_clusters.csv` — cluster assignments (run `src/6_clustering.py`)
+- `data/processed/review-NYC-restaurant-filtered.parquet` — filtered reviews (run `src/1_data_processing.py`)
+- `results/pca/review_embeddings_pca.npy` — PCA-reduced embeddings (run `src/4_pca.py`)
+- `results/pca/pca_model.pkl` — fitted PCA model (run `src/4_pca.py`)
+- `results/clustering/cluster_centroids.npy` — cluster centroids (run `src/6a_clustering_pca.py`)
+- `results/clustering/restaurant_clusters.csv` — cluster assignments (run `src/6a_clustering_pca.py`)
 
 ### Example Usage
 ```python
@@ -219,8 +258,8 @@ from src.7_similarity import load_model, load_pca_model, search_pca_within_clust
 
 reviews = pd.read_parquet('data/processed/review-NYC-restaurant-filtered.parquet')
 meta = pd.read_parquet('data/processed/meta-NYC-restaurant.parquet')
-embeddings_pca = np.load('data/processed/review_embeddings_pca.npy', mmap_mode='r')
-pca = load_pca_model('data/processed/pca_model.pkl')
+embeddings_pca = np.load('results/pca/review_embeddings_pca.npy', mmap_mode='r')
+pca = load_pca_model('results/pca/pca_model.pkl')
 centroids = np.load('results/clustering/cluster_centroids.npy')
 clusters = pd.read_csv('results/clustering/restaurant_clusters.csv')
 
@@ -281,17 +320,16 @@ python src/6_clustering.py
 
 ### Output Files
 
-All clustering outputs are saved to `results/clustering/`:
+All secondary clustering artifacts are saved to `results/clustering/evaluation/`:
 
 | File | Description |
 |---|---|
-| `restaurant_clusters.csv` | Cluster label (0–49) for each restaurant, with name, borough, coordinates, avg_rating |
-| `cluster_summary.json` | Per-cluster summary: size, avg_rating, top_borough, top 10 TF-IDF keywords, sample restaurants |
-| `cluster_centroids.npy` | Shape (50, 768) — mean meta embedding vector per cluster, used by semantic search for fast cluster matching |
-| `clustering_scores.csv` | Silhouette scores for all 36 experiments |
-| `cluster_visualization.html` | Interactive 2D scatter plot (PCA), hover shows restaurant name, cluster, keywords, borough |
-| `silhouette_vs_k.png` | Silhouette score vs k curve for all schemes |
-| `best_cluster_distribution.png` | Cluster size distribution for the winning model |
+| `cluster_summary.json` | Per-cluster summary: keywords and stats |
+| `clustering_scores.csv` | Silhouette scores for all experiments |
+| `silhouette_vs_k.png` | Performance tradeoff plots |
+| `cluster_size_dist.png` | Cluster distribution bar chart |
+| `wordclouds/` | Folder containing WordCloud PNGs for all 50 clusters |
+| `cluster_map.html` | Interactive Plotly map of all clusters |
 | `cluster_comparison_umap.png` | UMAP visualization comparing clustering schemes |
 
 ### How Clustering Enables Efficient Search
@@ -601,38 +639,31 @@ ml-restaurant-recommendation/
 │   ├── exploration.ipynb
 │   └── clustering_analysis.ipynb
 ├── src/
-│   ├── 1_data_processing.py   # Data loading, cleaning, filtering, borough assignment
-│   ├── 2_embedding.py         # Sentence embedding generation (nomic-embed-text-v1.5)
-│   ├── 3_search_test_embedding.py  # Semantic search on full 768-d embeddings (baseline)
-│   ├── 4_pca.py               # PCA dimensionality reduction (768 → 128)
-│   ├── 4a_pca_evaluation.py   # PCA component-count evaluation (recall@10, speedup)
-│   ├── 5_search_test_pca.py   # Semantic search on PCA-reduced embeddings
-│   ├── 6a_clustering_pca.py   # K-Means clustering (PCA-reduced)
-│   ├── 6b_clustering_full.py  # K-Means clustering (Full-dimensional)
-│   ├── 7_similarity.py        # Cosine similarity, cluster-aware search, PCA search
-│   ├── absa.py                # Shim → re-exports from src/8_ranking/absa.py
-│   ├── evaluation.py          # Model evaluation metrics
-│   ├── user_profile.py        # User profile management
-│   ├── app.py                 # Interactive map explorer (streamlit run src/app.py)
-│   └── 8_ranking/             # Ranking & ABSA package
-│       ├── __init__.py        # rank_candidates, add_price_tier_score, sensitivity_analysis
-│       ├── absa.py            # ABSA precompute, get_aspect_prefs, validation
-│       ├── demo_search.py     # Interactive search + ranking demo (streamlit run)
-│       └── scripts/           # Run in order from project root
-│           ├── step0_frequency_analysis.py  # Validate ASPECT_KEYWORDS vs corpus
-│           ├── step1_precompute.py          # Precompute aspect scores (~1–2 h)
-│           ├── step2_validation.py          # ABSA accuracy + sensitivity analysis
-│           └── step3_sensitivity_demo.py    # Compare α/β/γ weight sets
+│   ├── 1_data_processing.py   # Data loading, cleaning, filtering
+│   ├── 2_embedding.py         # Sentence embedding generation
+│   ├── 3_search_test_embedding.py  # Full 768-d search test
+│   ├── 4_pca.py               # PCA reduction (768 → 128)
+│   ├── 4a_pca_evaluation.py   # PCA component-count evaluation
+│   ├── 5_search_test_pca.py   # PCA-reduced search test
+│   ├── 6a_clustering_pca.py   # K-Means clustering (Standard)
+│   ├── 6b_clustering_full.py  # K-Means clustering (High-dim)
+│   ├── 6c_clustering_evaluation.py # CONSOLIDATED evaluation & viz
+│   ├── 7_similarity.py        # Production search engine
+│   ├── app.py                 # Interactive Map UI
+│   └── 8_ranking/             # Re-Ranking & Sentiment package
 └── results/
-    ├── clustering/
-    │   ├── restaurant_clusters.csv        # Cluster label (0–49) per restaurant
-    │   ├── cluster_summary.json           # Per-cluster keywords and stats
-    │   ├── cluster_centroids.npy          # Mean meta embedding per cluster (50, 768)
-    │   ├── clustering_scores.csv          # Silhouette scores for all 36 experiments
-    │   ├── cluster_visualization.html     # Interactive 2D UMAP scatter plot
-    │   └── …
-    ├── sensitivity_analysis.csv           # α/β/γ grid search results
-    ├── sensitivity_latest.csv             # Per-query top-5 with weight labels
-    ├── sensitivity_latest_blind.csv       # Blind version for human scoring
-    └── review_analysis_report.csv
+    ├── pca/                   # Production PCA embeddings & models
+    │   ├── review_embeddings_pca.npy
+    │   ├── meta_embeddings_pca.npy
+    │   ├── pca_model.pkl
+    │   └── evaluation/        # PCA metrics and tradeoff plots
+    └── clustering/            # Production cluster assignments
+        ├── restaurant_clusters.csv
+        ├── cluster_centroids.npy
+        └── evaluation/        # Grid search, summaries, and wordclouds
+            ├── cluster_summary.json
+            ├── clustering_scores.csv
+            ├── silhouette_vs_k.png
+            ├── cluster_map.html
+            └── wordclouds/
 ```

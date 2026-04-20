@@ -8,8 +8,9 @@ dimensional PCA space produced by 4_pca.py.  Because the vectors are smaller
 requires less memory.
 
 Prerequisites
-  - data/processed/review_embeddings_pca.npy   (from 4_pca.py)
-  - data/processed/pca_model.pkl               (from 4_pca.py)
+EMB_PCA_PATH   = "results/pca/review_embeddings_pca.npy"
+PCA_MODEL_PATH = "results/pca/pca_model.pkl"
+               (from 4_pca.py)
   - data/processed/review-NYC-restaurant-filtered.parquet  (from 1_data_processing.py)
   - data/processed/meta-NYC-restaurant.parquet
 """
@@ -24,8 +25,8 @@ from sentence_transformers import SentenceTransformer
 
 # --------------- Configuration ---------------
 MODEL_NAME = "nomic-ai/nomic-embed-text-v1.5"
-PCA_MODEL_PATH = "data/processed/pca_model.pkl"
-PCA_EMBEDDINGS_PATH = "data/processed/review_embeddings_pca.npy"
+PCA_MODEL_PATH = "results/pca/pca_model.pkl"
+PCA_EMBEDDINGS_PATH = "results/pca/review_embeddings_pca.npy"
 REVIEWS_PATH = "data/processed/review-NYC-restaurant-filtered.parquet"
 META_PATH = "data/processed/meta-NYC-restaurant.parquet"
 # ------------------------------------------------

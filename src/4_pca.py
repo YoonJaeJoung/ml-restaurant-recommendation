@@ -1,12 +1,12 @@
 """
 4_pca.py
-Dimensionality reduction of review and metadata embeddings via Incremental PCA.
+Dimensionality reduction of review and metadata embeddings via IncrementalPCA.
 
 Reads the merged 768-dimensional embedding vectors produced by 2_embedding.py,
 fits IncrementalPCA in chunks to limit RAM usage, and saves the reduced-dimension
 vectors robustly using memmap and JSON checkpoints to allow safe pause/resume.
 
-Output files (saved to data/processed/):
+Output files (saved to results/pca/):
   - review_embeddings_pca.npy   : PCA-reduced review embeddings  (N, n_components)
   - meta_embeddings_pca.npy     : PCA-reduced metadata embeddings (M, n_components)
   - pca_model.pkl               : Fitted sklearn PCA object (for projecting queries)
@@ -20,7 +20,7 @@ from sklearn.decomposition import IncrementalPCA
 
 # --------------- Configuration ---------------
 INPUT_DIR = "./data/processed"
-OUTPUT_DIR = "./data/processed"
+OUTPUT_DIR = "./results/pca"
 N_COMPONENTS = 128          
 CHUNK_SIZE = 100_000        
 # ------------------------------------------------

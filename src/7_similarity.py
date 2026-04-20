@@ -4,6 +4,8 @@ Cosine similarity computation and restaurant retrieval.
 """
 
 import os
+import json
+import time
 import tempfile
 import numpy as np
 import pandas as pd
@@ -26,9 +28,17 @@ def embed_query(query: str, model: SentenceTransformer) -> np.ndarray:
     embedding = model.encode([prefixed], convert_to_numpy=True)
     return embedding
 
-def load_embeddings(embeddings_path: str) -> np.ndarray:
-    """Load precomputed review embeddings from a .npy file using memory mapping."""
-    return np.load(embeddings_path, mmap_mode='r')
+def load_embeddings_raw(embeddings_path: str, dim: int) -> np.ndarray:
+    """
+    Load precomputed embeddings from a RAW binary .npy file (no header).
+    Calculates number of rows from file size and returns a memory map.
+    """
+    if not os.path.exists(embeddings_path):
+        raise FileNotFoundError(f"Embedding file not found: {embeddings_path}")
+    
+    file_size = os.path.getsize(embeddings_path)
+    n_rows = file_size // (dim * 4)
+    return np.memmap(embeddings_path, dtype='float32', mode='r', shape=(n_rows, dim))
 
 def get_top_k_reviews(
     query_embedding: np.ndarray,
@@ -239,25 +249,99 @@ def search_pca_within_clusters(
     top_reviews["similarity_score"] = scores[top_indices]
     
     results = aggregate_to_restaurants(top_reviews, meta_df, top_n=top_n)
-    return results
+    return results, best_clusters
+
+def main():
+    """
+    Interactive CLI for searching the NYC restaurant production database.
+    """
+    print("\n" + "="*60)
+    print("🗽 NYC RESTAURANT SEMANTIC SEARCH (Production CLI)")
+    print("="*60)
+    print("🚀 Initializing engine and models...")
+    start_init = time.time()
+
+    # Define standard paths
+    REVIEW_PATH = 'data/processed/review-NYC-restaurant-filtered.parquet'
+    META_PATH = 'data/processed/meta-NYC-restaurant.parquet'
+    PCA_EMBEDDINGS_PATH = 'results/pca/review_embeddings_pca.npy'
+    PCA_MODEL_PATH = 'results/pca/pca_model.pkl'
+    CENTROIDS_PATH = 'results/clustering/cluster_centroids.npy'
+    CLUSTERS_PATH = 'results/clustering/restaurant_clusters.csv'
+    SUMMARY_PATH = 'results/clustering/evaluation/cluster_summary.json'
+
+    # Check existence
+    required = [REVIEW_PATH, META_PATH, PCA_EMBEDDINGS_PATH, PCA_MODEL_PATH, CENTROIDS_PATH, CLUSTERS_PATH, SUMMARY_PATH]
+    for p in required:
+        if not os.path.exists(p):
+            print(f"❌ Missing required file: {p}")
+            return
+
+    # Load everything (once)
+    model = load_model()
+    pca = load_pca_model(PCA_MODEL_PATH)
     
-"""
-To test search_pca_within_clusters:
+    # Standard production dimensions
+    N_REVIEWS = 2157045
+    N_RESTAURANTS = 19532
+    PCA_DIM = 128
 
-python -c "
-import pandas as pd
-import numpy as np
-from src.7_similarity import load_model, load_pca_model, search_pca_within_clusters
+    print(f"📦 Loading embeddings (2.1M reviews, 128 dims)...")
+    # Use raw binary loader for production files
+    embeddings_pca = load_embeddings_raw(PCA_EMBEDDINGS_PATH, PCA_DIM)
+    
+    print(f"📑 Loading metadata...")
+    # Load dataframes (Warning: 2.1M review metadata consumes ~2GB RAM)
+    reviews = pd.read_parquet(REVIEW_PATH, columns=['gmap_id'])
+    meta = pd.read_parquet(META_PATH)
+    centroids = np.load(CENTROIDS_PATH)
+    clusters_df = pd.read_csv(CLUSTERS_PATH)
 
-reviews = pd.read_parquet('data/processed/review-NYC-restaurant-filtered.parquet')
-meta = pd.read_parquet('data/processed/meta-NYC-restaurant.parquet')
-embeddings_pca = np.load('data/processed/review_embeddings_pca.npy', mmap_mode='r')
-pca = load_pca_model('data/processed/pca_model.pkl')
-centroids = np.load('results/clustering/cluster_centroids.npy')
-clusters = pd.read_csv('results/clustering/restaurant_clusters.csv')
+    with open(SUMMARY_PATH, 'r') as f:
+        summary = json.load(f)
+    cluster_info = {c['cluster_id']: c for c in summary}
 
-model = load_model()
-results = search_pca_within_clusters('cozy italian restaurant for a date night', model, pca, embeddings_pca, reviews, meta, centroids, clusters)
-print(results)
-"
-"""
+    init_time = time.time() - start_init
+    print(f"✅ Initialization complete ({init_time:.2f}s)")
+    print("-" * 60)
+    print("Type your query below (e.g. 'cozy candlelit italian secret spot')")
+    print("Type 'exit' to quit.")
+
+    while True:
+        try:
+            query = input("\n🔍 Query: ").strip()
+        except EOFError:
+            break
+            
+        if not query:
+            continue
+        if query.lower() in ['exit', 'quit']:
+            break
+
+        start_search = time.time()
+        results, best_clusters = search_pca_within_clusters(
+            query, model, pca, embeddings_pca, reviews, meta, centroids, clusters_df,
+            top_n_clusters=3, k=100, top_n=10
+        )
+        search_time = time.time() - start_search
+
+        # Explainability output
+        print("\n📍 TARGETING CLUSTERS:")
+        for cid in best_clusters:
+            keywords = ", ".join(cluster_info.get(cid, {}).get('top_keywords', []))
+            print(f"   • Cluster {cid:2}: {keywords}")
+
+        # Result Table
+        print("\n🏆 TOP RECOMMENDATIONS:")
+        if not results.empty:
+            # Format similarity as percentage for readability
+            results['similarity'] = (results['avg_similarity'] * 100).map('{:.1f}%'.format)
+            print(results[['name', 'similarity', 'avg_rating', 'borough']].to_string(index=False))
+        else:
+            print("   No matching restaurants found.")
+            
+        print(f"\n⏱️  Search Latency: {search_time*1000:.2f} ms")
+        print("-" * 30)
+
+if __name__ == "__main__":
+    main()

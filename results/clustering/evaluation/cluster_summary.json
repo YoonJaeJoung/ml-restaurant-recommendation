@@ -1,0 +1,1652 @@
+[
+  {
+    "cluster_id": 0,
+    "size": 915,
+    "avg_rating": 4.13,
+    "top_borough": "Queens",
+    "top_borough_pct": 35.8,
+    "top_keywords": [
+      "chicken",
+      "bbq",
+      "order",
+      "friendly",
+      "wait",
+      "rice",
+      "eat",
+      "cheese",
+      "drinks",
+      "spot"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Stella's",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Taste Of Heaven",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Nneji",
+        "borough": "Queens"
+      }
+    ]
+  },
+  {
+    "cluster_id": 1,
+    "size": 248,
+    "avg_rating": 4.39,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 69.8,
+    "top_keywords": [
+      "pasta",
+      "italian",
+      "wine",
+      "menu",
+      "friendly",
+      "atmosphere",
+      "wait",
+      "experience",
+      "dishes",
+      "dinner"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Pasta by Hudson",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Lucciola",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Un Posto Italiano",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 2,
+    "size": 371,
+    "avg_rating": 4.31,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 38.3,
+    "top_keywords": [
+      "pizza",
+      "italian",
+      "friendly",
+      "pizzas",
+      "atmosphere",
+      "pasta",
+      "menu",
+      "fresh",
+      "little",
+      "ve"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Biga Bite",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Bosino",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Coffee Break",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 3,
+    "size": 490,
+    "avg_rating": 4.1,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 40.4,
+    "top_keywords": [
+      "burger",
+      "burgers",
+      "fries",
+      "fast",
+      "order",
+      "friendly",
+      "clean",
+      "shake",
+      "wait",
+      "chicken"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Burger Village",
+        "borough": "Queens"
+      },
+      {
+        "name": "Leslie's Kitchen",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "HALL",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 4,
+    "size": 506,
+    "avg_rating": 3.88,
+    "top_borough": "Queens",
+    "top_borough_pct": 30.6,
+    "top_keywords": [
+      "donuts",
+      "coffee",
+      "dunkin",
+      "donut",
+      "friendly",
+      "order",
+      "dunkin donuts",
+      "doughnuts",
+      "clean",
+      "fast"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Clinton Cider Mill",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Croffle House",
+        "borough": "Queens"
+      },
+      {
+        "name": "Fat Doughnut",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 5,
+    "size": 1108,
+    "avg_rating": 4.3,
+    "top_borough": "Brooklyn",
+    "top_borough_pct": 35.6,
+    "top_keywords": [
+      "prices",
+      "fresh",
+      "friendly",
+      "chicken",
+      "clean",
+      "store",
+      "people",
+      "don",
+      "try",
+      "price"
+    ],
+    "example_restaurants": [
+      {
+        "name": "The Cremeria",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Mixed Greens Kosher Cafe",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Lidia's Play Cafe",
+        "borough": "Queens"
+      }
+    ]
+  },
+  {
+    "cluster_id": 6,
+    "size": 1005,
+    "avg_rating": 4.26,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 43.8,
+    "top_keywords": [
+      "bar",
+      "drinks",
+      "music",
+      "fun",
+      "atmosphere",
+      "spot",
+      "friendly",
+      "night",
+      "drink",
+      "cool"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Live Axe",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Th\u00e9\u00e2tre XIV - The Home of Company XIV",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "The Last Stop",
+        "borough": "Bronx"
+      }
+    ]
+  },
+  {
+    "cluster_id": 7,
+    "size": 150,
+    "avg_rating": 4.12,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 55.3,
+    "top_keywords": [
+      "buffet",
+      "eat",
+      "fresh",
+      "variety",
+      "price",
+      "lunch",
+      "selection",
+      "clean",
+      "bar",
+      "meat"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Minas Grill",
+        "borough": "Queens"
+      },
+      {
+        "name": "The Porsche Club at Citi Field",
+        "borough": "Queens"
+      },
+      {
+        "name": "Phil-Am Kusina",
+        "borough": "Staten Island"
+      }
+    ]
+  },
+  {
+    "cluster_id": 8,
+    "size": 149,
+    "avg_rating": 4.45,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 73.8,
+    "top_keywords": [
+      "japanese",
+      "menu",
+      "experience",
+      "lunch",
+      "rice",
+      "small",
+      "sushi",
+      "sake",
+      "price",
+      "curry"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Secchu Yokota \u6298\u8877\u3088\u3053\u7530",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Chiko",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Izakaya Fuku",
+        "borough": "Queens"
+      }
+    ]
+  },
+  {
+    "cluster_id": 9,
+    "size": 551,
+    "avg_rating": 4.24,
+    "top_borough": "Brooklyn",
+    "top_borough_pct": 31.0,
+    "top_keywords": [
+      "mexican",
+      "drinks",
+      "tacos",
+      "margaritas",
+      "friendly",
+      "guacamole",
+      "atmosphere",
+      "prices",
+      "order",
+      "spot"
+    ],
+    "example_restaurants": [
+      {
+        "name": "NEWYORKTITLAN",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Ruta Oaxaca Mexican Cuisine",
+        "borough": "Queens"
+      },
+      {
+        "name": "For All Things Good",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 10,
+    "size": 342,
+    "avg_rating": 4.37,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 41.5,
+    "top_keywords": [
+      "ice",
+      "cream",
+      "ice cream",
+      "flavors",
+      "friendly",
+      "try",
+      "chocolate",
+      "flavor",
+      "gelato",
+      "worth"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Sugar Hill Creamery",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Lady Moo Moo",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Whipped Urban Dessert Lab",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 11,
+    "size": 461,
+    "avg_rating": 4.09,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 53.1,
+    "top_keywords": [
+      "sandwiches",
+      "sandwich",
+      "fresh",
+      "friendly",
+      "clean",
+      "coffee",
+      "bread",
+      "fast",
+      "order",
+      "lunch"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Sub Hub",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Tramezzini",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Henry's",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 12,
+    "size": 284,
+    "avg_rating": 4.31,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 47.5,
+    "top_keywords": [
+      "thai",
+      "pad",
+      "pad thai",
+      "lunch",
+      "curry",
+      "rice",
+      "chicken",
+      "spicy",
+      "friendly",
+      "fried"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Tong",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Uni Thai Bistro",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Maison Bangkok",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 13,
+    "size": 964,
+    "avg_rating": 4.01,
+    "top_borough": "Brooklyn",
+    "top_borough_pct": 29.8,
+    "top_keywords": [
+      "chinese",
+      "chicken",
+      "rice",
+      "order",
+      "fried",
+      "fast",
+      "friendly",
+      "prices",
+      "fresh",
+      "price"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Milu",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Mee Noodle Shop - 9th Ave",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Hong Kong Kei One",
+        "borough": "Staten Island"
+      }
+    ]
+  },
+  {
+    "cluster_id": 14,
+    "size": 307,
+    "avg_rating": 4.16,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 47.9,
+    "top_keywords": [
+      "indian",
+      "chicken",
+      "naan",
+      "lunch",
+      "friendly",
+      "try",
+      "tasty",
+      "order",
+      "taste",
+      "dishes"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Harry Sweets & Snacks",
+        "borough": "Queens"
+      },
+      {
+        "name": "Indian Summer Harlem",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Mysttik Masaala Williamsburg",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 15,
+    "size": 642,
+    "avg_rating": 4.46,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 55.9,
+    "top_keywords": [
+      "coffee",
+      "friendly",
+      "shop",
+      "coffee shop",
+      "latte",
+      "cafe",
+      "little",
+      "spot",
+      "atmosphere",
+      "work"
+    ],
+    "example_restaurants": [
+      {
+        "name": "hamlet coffee company",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "BALANCERO",
+        "borough": "Queens"
+      },
+      {
+        "name": "Companion Cafe",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 16,
+    "size": 358,
+    "avg_rating": 4.46,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 77.7,
+    "top_keywords": [
+      "wine",
+      "menu",
+      "french",
+      "bar",
+      "atmosphere",
+      "experience",
+      "friendly",
+      "cheese",
+      "small",
+      "dinner"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Madame Poupon",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Benno Restaurant",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Madre",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 17,
+    "size": 309,
+    "avg_rating": 4.46,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 60.8,
+    "top_keywords": [
+      "drinks",
+      "cocktails",
+      "bar",
+      "atmosphere",
+      "cocktail",
+      "drink",
+      "spot",
+      "friendly",
+      "menu",
+      "cool"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Sama Street",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Pineapple Club",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Townhouse 275",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 18,
+    "size": 106,
+    "avg_rating": 4.48,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 69.8,
+    "top_keywords": [
+      "cookies",
+      "chocolate",
+      "cookie",
+      "chocolate chip",
+      "coffee",
+      "chip",
+      "sweet",
+      "hot",
+      "worth",
+      "try"
+    ],
+    "example_restaurants": [
+      {
+        "name": "ELLA CROWN Bakehouse",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "BonBon - A Swedish Candy Co.",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "MOJO Artisanal Mousse Bar",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 19,
+    "size": 132,
+    "avg_rating": 4.25,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 52.3,
+    "top_keywords": [
+      "juice",
+      "smoothies",
+      "juices",
+      "fresh",
+      "hot",
+      "smoothie",
+      "healthy",
+      "friendly",
+      "dogs",
+      "drink"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Juices For Life",
+        "borough": "Bronx"
+      },
+      {
+        "name": "Fruces Juice Bar",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "The Bush Doctor Juice Bar",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 20,
+    "size": 292,
+    "avg_rating": 4.34,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 68.5,
+    "top_keywords": [
+      "bar",
+      "pub",
+      "drinks",
+      "irish",
+      "friendly",
+      "beer",
+      "atmosphere",
+      "drink",
+      "spot",
+      "selection"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Rosie Dunn's Victorian Pub",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Hartley's",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "The Blasket",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 21,
+    "size": 210,
+    "avg_rating": 4.27,
+    "top_borough": "Queens",
+    "top_borough_pct": 43.3,
+    "top_keywords": [
+      "korean",
+      "bbq",
+      "chicken",
+      "korean bbq",
+      "dishes",
+      "meat",
+      "eat",
+      "price",
+      "kimchi",
+      "friendly"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Kochi",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Gomi Korean Wine Bar",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Jua",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 22,
+    "size": 284,
+    "avg_rating": 4.18,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 37.0,
+    "top_keywords": [
+      "diner",
+      "breakfast",
+      "friendly",
+      "prices",
+      "menu",
+      "coffee",
+      "dinner",
+      "clean",
+      "fast",
+      "eat"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Terrace Restaurant & Bakery",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Palacios Cafe",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Johny's Luncheonette",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 23,
+    "size": 332,
+    "avg_rating": 4.2,
+    "top_borough": "Brooklyn",
+    "top_borough_pct": 37.7,
+    "top_keywords": [
+      "bagels",
+      "bagel",
+      "cheese",
+      "cream",
+      "cream cheese",
+      "fresh",
+      "coffee",
+      "friendly",
+      "breakfast",
+      "order"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Familiars Vegan Coffee Shop",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Avenue x Bagels Deli",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Koala Cafe",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 24,
+    "size": 1262,
+    "avg_rating": 4.11,
+    "top_borough": "Brooklyn",
+    "top_borough_pct": 28.6,
+    "top_keywords": [
+      "pizza",
+      "slice",
+      "pizza pizza",
+      "order",
+      "slices",
+      "friendly",
+      "cheese",
+      "crust",
+      "sauce",
+      "fresh"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Ace's Pizza",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Dough Vale",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "BK PIZZA",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 25,
+    "size": 621,
+    "avg_rating": 4.38,
+    "top_borough": "Brooklyn",
+    "top_borough_pct": 34.3,
+    "top_keywords": [
+      "cake",
+      "bakery",
+      "cakes",
+      "pastries",
+      "coffee",
+      "bread",
+      "fresh",
+      "chocolate",
+      "friendly",
+      "sweet"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Flying Hippo Bakery Cafe",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Ceremonia Bakeshop",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Korn's Bakery & cafe",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 26,
+    "size": 389,
+    "avg_rating": 3.94,
+    "top_borough": "Brooklyn",
+    "top_borough_pct": 35.0,
+    "top_keywords": [
+      "chicken",
+      "fast",
+      "order",
+      "fried",
+      "fried chicken",
+      "fries",
+      "popeyes",
+      "clean",
+      "fresh",
+      "friendly"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Yafa Cafe",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "BAGOCK Fried Chicken & Doughnuts",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "FoodStruck",
+        "borough": "Queens"
+      }
+    ]
+  },
+  {
+    "cluster_id": 27,
+    "size": 401,
+    "avg_rating": 4.38,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 49.6,
+    "top_keywords": [
+      "beer",
+      "bar",
+      "selection",
+      "beers",
+      "beer selection",
+      "drinks",
+      "friendly",
+      "atmosphere",
+      "spot",
+      "drink"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Wild East Brewing Co.",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Beer Run",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Temkin's",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 28,
+    "size": 229,
+    "avg_rating": 4.3,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 61.1,
+    "top_keywords": [
+      "steak",
+      "steaks",
+      "steakhouse",
+      "friendly",
+      "atmosphere",
+      "drinks",
+      "experience",
+      "menu",
+      "wait",
+      "order"
+    ],
+    "example_restaurants": [
+      {
+        "name": "The Loft Steakhouse",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Bordeaux Steakhouse",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Club A Steakhouse",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 29,
+    "size": 441,
+    "avg_rating": 4.27,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 50.6,
+    "top_keywords": [
+      "dumplings",
+      "pho",
+      "soup",
+      "noodles",
+      "soup dumplings",
+      "pork",
+      "rice",
+      "noodle",
+      "vietnamese",
+      "beef"
+    ],
+    "example_restaurants": [
+      {
+        "name": "N\u00f3n L\u00e1 Vietnamese Kitchen",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Nurlan",
+        "borough": "Queens"
+      },
+      {
+        "name": "HUPO\u7425\u73c0",
+        "borough": "Queens"
+      }
+    ]
+  },
+  {
+    "cluster_id": 30,
+    "size": 172,
+    "avg_rating": 4.4,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 61.6,
+    "top_keywords": [
+      "ramen",
+      "broth",
+      "pork",
+      "noodles",
+      "wait",
+      "spicy",
+      "chicken",
+      "ve",
+      "friendly",
+      "small"
+    ],
+    "example_restaurants": [
+      {
+        "name": "TORIBRO Ramen",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "19 Caf\u00e9",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "NR",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 31,
+    "size": 224,
+    "avg_rating": 4.31,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 50.4,
+    "top_keywords": [
+      "tea",
+      "bubble tea",
+      "bubble",
+      "milk",
+      "teas",
+      "drinks",
+      "drink",
+      "sugar",
+      "friendly",
+      "try"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Namas Tea",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Puerh Brooklyn teashop",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Brooklyn Tea",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 32,
+    "size": 179,
+    "avg_rating": 4.22,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 68.2,
+    "top_keywords": [
+      "view",
+      "views",
+      "drinks",
+      "rooftop",
+      "bar",
+      "beautiful",
+      "location",
+      "atmosphere",
+      "friendly",
+      "drink"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Honorable William Wall",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "IX-514 USS Baylander",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "The Liberty Warehouse",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 33,
+    "size": 263,
+    "avg_rating": 4.29,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 38.4,
+    "top_keywords": [
+      "seafood",
+      "lobster",
+      "fish",
+      "fresh",
+      "shrimp",
+      "drinks",
+      "crab",
+      "wait",
+      "oysters",
+      "friendly"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Astoria Seafood and Grill",
+        "borough": "Queens"
+      },
+      {
+        "name": "Cafe Grill",
+        "borough": "Queens"
+      },
+      {
+        "name": "Oceans",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 34,
+    "size": 151,
+    "avg_rating": 4.42,
+    "top_borough": "Queens",
+    "top_borough_pct": 45.7,
+    "top_keywords": [
+      "greek",
+      "fresh",
+      "friendly",
+      "gyro",
+      "octopus",
+      "atmosphere",
+      "salad",
+      "lamb",
+      "fish",
+      "grilled"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Sweet Habit",
+        "borough": "Queens"
+      },
+      {
+        "name": "Greek Gyros Yorkville",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Yia Yia's Taverna",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 35,
+    "size": 423,
+    "avg_rating": 4.15,
+    "top_borough": "Queens",
+    "top_borough_pct": 26.7,
+    "top_keywords": [
+      "spanish",
+      "chicken",
+      "dominican",
+      "prices",
+      "friendly",
+      "order",
+      "rice",
+      "eat",
+      "price",
+      "tapas"
+    ],
+    "example_restaurants": [
+      {
+        "name": "GAUDir",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Rice x Beans",
+        "borough": "Queens"
+      },
+      {
+        "name": "Margarita's",
+        "borough": "Bronx"
+      }
+    ]
+  },
+  {
+    "cluster_id": 36,
+    "size": 589,
+    "avg_rating": 4.34,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 56.4,
+    "top_keywords": [
+      "brunch",
+      "drinks",
+      "atmosphere",
+      "menu",
+      "friendly",
+      "spot",
+      "chicken",
+      "bar",
+      "wait",
+      "little"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Plado Tasting Bar",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Paint 'N Pour",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Julia's Beer and Wine Bar",
+        "borough": "Queens"
+      }
+    ]
+  },
+  {
+    "cluster_id": 37,
+    "size": 478,
+    "avg_rating": 4.24,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 30.1,
+    "top_keywords": [
+      "deli",
+      "sandwiches",
+      "sandwich",
+      "friendly",
+      "fresh",
+      "prices",
+      "pastrami",
+      "clean",
+      "store",
+      "people"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Cross Bay Deli & Grill",
+        "borough": "Queens"
+      },
+      {
+        "name": "Tony's Beechhurst Deli",
+        "borough": "Queens"
+      },
+      {
+        "name": "The Beach Deli",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 38,
+    "size": 111,
+    "avg_rating": 4.03,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 61.3,
+    "top_keywords": [
+      "chipotle",
+      "fast",
+      "burrito",
+      "clean",
+      "location",
+      "order",
+      "fresh",
+      "mexican",
+      "friendly",
+      "better"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Hot Peppers",
+        "borough": "Queens"
+      },
+      {
+        "name": "NAYA Midtown East",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Blue Maiz",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 39,
+    "size": 155,
+    "avg_rating": 4.13,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 31.6,
+    "top_keywords": [
+      "wings",
+      "chicken",
+      "drinks",
+      "order",
+      "bar",
+      "friendly",
+      "fries",
+      "beer",
+      "fried",
+      "wait"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Meat and Bread",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Nutty Sports Bar & Grill",
+        "borough": "Queens"
+      },
+      {
+        "name": "Koko Wings",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 40,
+    "size": 529,
+    "avg_rating": 4.3,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 44.0,
+    "top_keywords": [
+      "sushi",
+      "fresh",
+      "omakase",
+      "quality",
+      "rolls",
+      "price",
+      "eat",
+      "friendly",
+      "lunch",
+      "fish"
+    ],
+    "example_restaurants": [
+      {
+        "name": "SHINN EAST",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Hungarian kosher takeout",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Poke & Roll Sushi",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 41,
+    "size": 341,
+    "avg_rating": 4.21,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 34.0,
+    "top_keywords": [
+      "tacos",
+      "taco",
+      "mexican",
+      "order",
+      "taco bell",
+      "drinks",
+      "friendly",
+      "fast",
+      "bell",
+      "fresh"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Bistro Casa Azul",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Amigo by Nai",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Zona Rosa",
+        "borough": "Queens"
+      }
+    ]
+  },
+  {
+    "cluster_id": 42,
+    "size": 298,
+    "avg_rating": 4.25,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 71.1,
+    "top_keywords": [
+      "healthy",
+      "salad",
+      "fresh",
+      "lunch",
+      "salads",
+      "bowl",
+      "friendly",
+      "options",
+      "order",
+      "poke"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Joe-Joe's Green Bar",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "N\u00fbrish",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Juke Box Juice & Salads",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 43,
+    "size": 431,
+    "avg_rating": 4.2,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 42.7,
+    "top_keywords": [
+      "breakfast",
+      "coffee",
+      "friendly",
+      "wait",
+      "order",
+      "pancakes",
+      "little",
+      "menu",
+      "lunch",
+      "spot"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Frenchy's Food Truck",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Mama Jo's Breakfast Cart",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Giulia's Cucina & Desserts",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 44,
+    "size": 163,
+    "avg_rating": 3.57,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 31.3,
+    "top_keywords": [
+      "mcdonald",
+      "fast",
+      "order",
+      "clean",
+      "people",
+      "slow",
+      "drive",
+      "fries",
+      "don",
+      "friendly"
+    ],
+    "example_restaurants": [
+      {
+        "name": "McDonald's",
+        "borough": "Queens"
+      },
+      {
+        "name": "McDonald's",
+        "borough": "Queens"
+      },
+      {
+        "name": "McDonald's",
+        "borough": "Staten Island"
+      }
+    ]
+  },
+  {
+    "cluster_id": 45,
+    "size": 85,
+    "avg_rating": 4.06,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 45.9,
+    "top_keywords": [
+      "dim sum",
+      "dim",
+      "sum",
+      "chinese",
+      "wait",
+      "dishes",
+      "dumplings",
+      "pork",
+      "chinatown",
+      "price"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Dim Sum Chelsea",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "AweSum DimSum",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Bodhi",
+        "borough": "Manhattan"
+      }
+    ]
+  },
+  {
+    "cluster_id": 46,
+    "size": 153,
+    "avg_rating": 4.48,
+    "top_borough": "Brooklyn",
+    "top_borough_pct": 44.4,
+    "top_keywords": [
+      "vegan",
+      "vegetarian",
+      "friendly",
+      "menu",
+      "try",
+      "options",
+      "spot",
+      "ve",
+      "tasty",
+      "dishes"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Nefista/ \u00c7i\u011f K\u00f6fte (Vegan Kofteh)",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Happy Veggie",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Next Stop Vegan",
+        "borough": "Bronx"
+      }
+    ]
+  },
+  {
+    "cluster_id": 47,
+    "size": 170,
+    "avg_rating": 4.26,
+    "top_borough": "Queens",
+    "top_borough_pct": 47.1,
+    "top_keywords": [
+      "empanadas",
+      "colombian",
+      "order",
+      "friendly",
+      "chicken",
+      "cuban",
+      "prices",
+      "tasty",
+      "try",
+      "cheese"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Pueblo Querido Coffee Roasters Cafe de Colombia",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "Kimpanadas",
+        "borough": "Brooklyn"
+      },
+      {
+        "name": "My Cuban Spot",
+        "borough": "Brooklyn"
+      }
+    ]
+  },
+  {
+    "cluster_id": 48,
+    "size": 317,
+    "avg_rating": 3.98,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 68.8,
+    "top_keywords": [
+      "starbucks",
+      "coffee",
+      "friendly",
+      "location",
+      "order",
+      "clean",
+      "people",
+      "drink",
+      "store",
+      "fast"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Starbucks",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Starbucks Reserve Roastery New York",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Starbucks",
+        "borough": "Queens"
+      }
+    ]
+  },
+  {
+    "cluster_id": 49,
+    "size": 441,
+    "avg_rating": 4.44,
+    "top_borough": "Manhattan",
+    "top_borough_pct": 56.5,
+    "top_keywords": [
+      "italian",
+      "pasta",
+      "atmosphere",
+      "friendly",
+      "family",
+      "wine",
+      "menu",
+      "little",
+      "dinner",
+      "fresh"
+    ],
+    "example_restaurants": [
+      {
+        "name": "Cerasella",
+        "borough": "Queens"
+      },
+      {
+        "name": "Jose Luis",
+        "borough": "Manhattan"
+      },
+      {
+        "name": "Dolce Fantasia",
+        "borough": "Staten Island"
+      }
+    ]
+  }
+]
