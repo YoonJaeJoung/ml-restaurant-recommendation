@@ -91,14 +91,23 @@ def transform_chunked_resume(pca: IncrementalPCA, embeddings: np.ndarray, chunk_
     else:
         print("Transformation already complete based on checkpoint.")
 
+import pandas as pd
+
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     review_emb_path = os.path.join(INPUT_DIR, "review_embeddings.npy")
     meta_emb_path = os.path.join(INPUT_DIR, "meta_embeddings.npy")
+    review_parquet_path = os.path.join(INPUT_DIR, "review-NYC-restaurant-filtered.parquet")
 
-    print("Loading review embeddings (mmap) ...")
-    review_embeddings = np.load(review_emb_path, mmap_mode="r")
+    print("Loading review parquet for shape detection...")
+    review_df = pd.read_parquet(review_parquet_path, columns=['gmap_id'])
+    n_reviews = len(review_df)
+    dim = 768
+
+    print(f"Loading review embeddings (raw memmap, {n_reviews:,} rows) ...")
+    # review_embeddings.npy is a raw binary (headerless) saved by np.memmap in 2_embedding.py
+    review_embeddings = np.memmap(review_emb_path, dtype='float32', mode="r", shape=(n_reviews, dim))
     print(f"  Review embeddings shape: {review_embeddings.shape}")
 
     print("Loading meta embeddings ...")

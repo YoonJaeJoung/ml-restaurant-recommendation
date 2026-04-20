@@ -24,13 +24,22 @@ K_CLUSTERS = 50
 
 def restore_filtered_meta():
     meta_df = pd.read_parquet(f"{DATA_DIR}/meta-NYC-restaurant.parquet")
-    review_df = pd.read_parquet(f"{DATA_DIR}/review-NYC-restaurant.parquet")
-    review_counts = review_df.groupby("gmap_id").size()
-    valid_gmap_ids = review_counts[review_counts > 30].index
+    review_filtered_path = f"{DATA_DIR}/review-NYC-restaurant-filtered.parquet"
+    
+    # Strictly align with the restaurants that actually have embeddings
+    review_df = pd.read_parquet(review_filtered_path, columns=["gmap_id"])
+    valid_gmap_ids = review_df["gmap_id"].unique()
+    
+    # Filter meta to only those in the final review set
     meta_df = meta_df[meta_df["gmap_id"].isin(valid_gmap_ids)].reset_index(drop=True)
+    
+    # Ensure the order matches what was used during embedding (alignment in 2_embedding.py)
+    # 2_embedding.py does: meta_df = meta_df[meta_df["gmap_id"].isin(valid_gmap_ids)].reset_index(drop=True)
+    # This matches.
     return meta_df
 
 def build_features_meta():
+    # Load meta embeddings (already aligned with the filtered meta entries)
     meta_emb = np.load(f"{DATA_DIR}/meta_embeddings.npy").astype(np.float32)
     meta_normed = normalize(meta_emb, norm="l2")
     return meta_normed
