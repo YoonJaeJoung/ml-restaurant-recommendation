@@ -4,6 +4,7 @@ Cosine similarity computation and restaurant retrieval.
 """
 
 import os
+import re
 import json
 import time
 import tempfile
@@ -13,6 +14,26 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 
 MODEL_NAME = "nomic-ai/nomic-embed-text-v1.5"
+
+# NYC ZIP-prefix guard. The meta parquet on disk was built with a neighborhood-name
+# borough filter that accidentally admits upstate NY places sharing those names
+# (e.g. Clinton NY 13323, Red Hook NY 12571). Until the meta + embeddings are
+# rebuilt via src/1_data_processing.py, filter natively at query time.
+VALID_ZIP_PREFIX = {"100", "101", "102", "103", "104",
+                    "110", "111", "112", "113", "114", "116"}
+_ZIP_RE = re.compile(r'(\d{5})(?:-\d{4})?\s*$')
+
+def has_valid_nyc_zip(address) -> bool:
+    """True iff `address` ends with a 5-digit ZIP whose first 3 digits are in VALID_ZIP_PREFIX."""
+    if not isinstance(address, str):
+        return False
+    m = _ZIP_RE.search(address)
+    return bool(m) and m.group(1)[:3] in VALID_ZIP_PREFIX
+
+def valid_nyc_gmap_ids(meta_df: pd.DataFrame) -> set:
+    """Set of gmap_ids from `meta_df` whose address passes the NYC ZIP-prefix check."""
+    mask = meta_df['address'].map(has_valid_nyc_zip)
+    return set(meta_df.loc[mask, 'gmap_id'].dropna())
 
 def load_model():
     """Load the sentence embedding model."""
@@ -98,6 +119,8 @@ def aggregate_to_restaurants(
         .rename(columns={"similarity_score": "avg_similarity"})
     )
     results = restaurant_scores.merge(meta_df, on="gmap_id", how="left")
+    # Drop restaurants outside NYC that slipped past the stale borough filter.
+    results = results[results["address"].map(has_valid_nyc_zip)]
     results = results.sort_values("avg_similarity", ascending=False).head(top_n)
     return results[["name", "avg_similarity", "avg_rating", "borough", "description", "url", "latitude", "longitude", "gmap_id"]]
 
@@ -229,9 +252,10 @@ def search_pca_within_clusters(
     best_clusters = find_best_cluster(query_embedding, centroids, top_n_clusters)
     print(f"Searching clusters: {best_clusters}")
     
-    # Stage 2: filter reviews to those clusters
+    # Stage 2: filter reviews to those clusters, then drop any gmap_ids whose
+    # address lacks an NYC ZIP prefix (catches upstate leakage from the stale meta).
     mask = restaurant_clusters["cluster"].isin(best_clusters)
-    relevant_gmap_ids = set(restaurant_clusters[mask]["gmap_id"])
+    relevant_gmap_ids = set(restaurant_clusters[mask]["gmap_id"]) & valid_nyc_gmap_ids(meta_df)
     relevant_mask = reviews_df["gmap_id"].isin(relevant_gmap_ids)
     relevant_reviews = reviews_df[relevant_mask].copy()
     relevant_indices = np.where(relevant_mask)[0]

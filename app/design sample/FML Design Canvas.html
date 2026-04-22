@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FML — Design Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html, body, #root { height: 100%; margin: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="components/design-canvas.jsx"></script>
+<script type="text/babel" src="components/data.jsx"></script>
+<script type="text/babel" src="components/map.jsx"></script>
+<script type="text/babel" src="components/panels.jsx"></script>
+<script type="text/babel" src="components/screens.jsx"></script>
+<script type="text/babel" src="components/mobile.jsx"></script>
+
+<script type="text/babel">
+// Static desktop frame — renders a screen into a 1440×900 artboard using
+// the same map/panel components but pinned to a chosen state.
+
+function DesktopFrame({ theme, screen, query, detailId, hoveredId, showCmdK, showExplorer }) {
+  const c = useThemeVars(theme);
+  const { restaurants: results, clusters: matched } = query ? searchRestaurants(query) : { restaurants: [], clusters: [] };
+  const detail = detailId ? RESTAURANTS.find(r => r.id === detailId) : null;
+
+  return (
+    <div style={{
+      width: 1440, height: 900, position: 'relative', overflow: 'hidden',
+      background: c.bg, color: c.text, fontFamily: T.font,
+    }}>
+      <div style={{ position: 'absolute', inset: 0 }}>
+        <NYCMap
+          dots={DOTS}
+          restaurants={screen === 'results' ? results : []}
+          dimmed={screen === 'results'}
+          theme={theme}
+          hoveredId={hoveredId}
+        />
+      </div>
+
+      {/* Top right */}
+      <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 20, display: 'flex', gap: 8 }}>
+        <PseudoBtn theme={theme} label="Clusters" mono />
+        <PseudoBtn theme={theme} label="⌘K" mono />
+        <PseudoBtn theme={theme} label="" icon />
+      </div>
+
+      <div style={{ position: 'absolute', top: 24, left: 20, zIndex: 25, fontFamily: T.mono, fontSize: 11, letterSpacing: 3.2, color: c.muted, textTransform: 'uppercase' }}>fml</div>
+
+      {screen !== 'detail' && (
+        <GlassPanel theme={theme} style={{
+          position: 'absolute', top: 60, left: 16, bottom: 16, width: 380,
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        }}>
+          <StaticSearchBar theme={theme} value={query || ''} focused={screen === 'results'} />
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            {screen === 'results'
+              ? <SearchResults query={query} results={results} matchedClusters={matched} theme={theme} hoveredId={hoveredId} />
+              : <HomeDiscover theme={theme} /> }
+          </div>
+        </GlassPanel>
+      )}
+
+      {screen === 'detail' && detail && (
+        <div style={{ position: 'absolute', inset: 0 }}>
+          <RestaurantDetail restaurant={detail} theme={theme} />
+        </div>
+      )}
+
+      {showExplorer && <ClusterExplorer theme={theme} onClose={() => {}} />}
+      {showCmdK && <StaticCommandPalette theme={theme} />}
+
+      {!showCmdK && !showExplorer && screen !== 'detail' && (
+        <div style={{
+          position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 15,
+        }}>
+          <GlassPanel theme={theme} style={{ padding: '8px 14px', display: 'flex', gap: 14, borderRadius: 999, fontFamily: T.mono, fontSize: 10, color: c.muted, letterSpacing: 0.5 }}>
+            <span>⌘K for anything</span><span style={{ opacity: 0.4 }}>·</span><span>50 clusters</span>
+          </GlassPanel>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PseudoBtn({ theme, label, mono, icon }) {
+  const c = useThemeVars(theme);
+  return (
+    <div style={{
+      padding: icon ? 0 : '8px 12px', height: 34, width: icon ? 34 : undefined,
+      background: theme === 'dark' ? 'rgba(20,20,22,0.72)' : 'rgba(255,255,255,0.78)',
+      backdropFilter: 'blur(22px) saturate(1.6)',
+      WebkitBackdropFilter: 'blur(22px) saturate(1.6)',
+      border: `1px solid ${c.panelBorder}`,
+      borderRadius: 8, color: c.text,
+      fontFamily: mono ? T.mono : T.font, fontSize: mono ? 11 : 12, letterSpacing: mono ? 0.5 : 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      {icon ? (
+        theme === 'dark'
+          ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      ) : label}
+    </div>
+  );
+}
+
+function StaticSearchBar({ theme, value, focused }) {
+  const c = useThemeVars(theme);
+  return (
+    <div style={{ padding: '20px 18px 12px' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '11px 14px', background: c.inputBg,
+        border: `1px solid ${focused ? c.accent : c.border}`, borderRadius: 10,
+      }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <span style={{ flex: 1, fontFamily: T.font, fontSize: 14, color: value ? c.text : c.muted }}>
+          {value || 'Search by mood, cuisine, vibe…'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function StaticCommandPalette({ theme }) {
+  const c = useThemeVars(theme);
+  const items = [
+    { kind: 'action', label: 'Toggle theme', hint: 'Switch to dark' },
+    { kind: 'search', label: 'Search for "cozy italian"', hint: '↵ to run' },
+    { kind: 'suggest', label: 'quiet date night', hint: 'recent' },
+    { kind: 'suggest', label: 'late-night ramen', hint: 'recent' },
+    { kind: 'cluster', label: 'date-night · dim-lit · natural-wine', hint: '#01 · 412' },
+    { kind: 'cluster', label: 'italian-casual · pasta · neighborhood', hint: '#07 · 356' },
+    { kind: 'cluster', label: 'ramen · counter · slurp', hint: '#04 · 189' },
+  ];
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 80,
+      background: theme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(17,24,39,0.25)',
+      backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+      display: 'flex', justifyContent: 'center', paddingTop: '14vh',
+    }}>
+      <div style={{
+        width: 640, maxWidth: '94vw', height: 'fit-content',
+        background: c.bg, border: `1px solid ${c.border}`, borderRadius: 12,
+        boxShadow: '0 24px 80px rgba(0,0,0,0.35)', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '14px 18px', borderBottom: `1px solid ${c.divider}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontFamily: T.mono, fontSize: 11, color: c.muted, letterSpacing: 0.5 }}>⌘K</span>
+          <span style={{ flex: 1, fontFamily: T.font, fontSize: 16, color: c.text }}>cozy italian</span>
+        </div>
+        <div style={{ padding: '6px 0' }}>
+          {items.map((cmd, i) => (
+            <div key={i} style={{
+              padding: '10px 18px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: i === 1 ? c.surfaceHover : 'transparent',
+              borderLeft: i === 1 ? `2px solid ${c.accent}` : '2px solid transparent',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontFamily: T.mono, fontSize: 9, color: c.muted, letterSpacing: 1.5, textTransform: 'uppercase', width: 54 }}>{cmd.kind}</span>
+                <span style={{ fontSize: 14, color: c.text }}>{cmd.label}</span>
+              </div>
+              <span style={{ fontFamily: T.mono, fontSize: 10.5, color: c.muted }}>{cmd.hint}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: '10px 18px', borderTop: `1px solid ${c.divider}`, display: 'flex', gap: 18, fontFamily: T.mono, fontSize: 10, color: c.muted }}>
+          <span>↑↓ navigate</span><span>↵ select</span><span>esc close</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================= CANVAS =================
+function Canvas() {
+  return (
+    <DesignCanvas>
+      <DCSection
+        title="FML · Home / Discover"
+        subtitle="First screen. Single-accent indigo, glass panel, typographic cluster cards. Dark + light."
+      >
+        <DCArtboard label="Desktop · Light · 1440×900" width={1440} height={900}>
+          <DesktopFrame theme="light" screen="home" />
+        </DCArtboard>
+        <DCArtboard label="Desktop · Dark · 1440×900" width={1440} height={900}>
+          <DesktopFrame theme="dark" screen="home" />
+        </DCArtboard>
+        <DCArtboard label="Mobile · iPhone 14 · Light" width={390} height={844}>
+          <MobileHome theme="light" />
+        </DCArtboard>
+        <DCArtboard label="Mobile · iPhone 14 · Dark" width={390} height={844}>
+          <MobileHome theme="dark" />
+        </DCArtboard>
+        <DCPostIt top={-20} left={1460} width={210} rotate={-2}>
+          Type IS the visual on cluster cards — keywords at 22/18/15, no icons, no color.
+        </DCPostIt>
+      </DCSection>
+
+      <DCSection
+        title="FML · Search Results"
+        subtitle='Query: "cozy italian outdoor". Non-result dots fade, result markers enlarge with white stroke and numeric rank.'
+      >
+        <DCArtboard label="Desktop · Light · 1440×900" width={1440} height={900}>
+          <DesktopFrame theme="light" screen="results" query="cozy italian outdoor" />
+        </DCArtboard>
+        <DCArtboard label="Desktop · Dark · 1440×900" width={1440} height={900}>
+          <DesktopFrame theme="dark" screen="results" query="cozy italian outdoor" />
+        </DCArtboard>
+        <DCArtboard label="Desktop · Hover rank 03" width={1440} height={900}>
+          <DesktopFrame theme="light" screen="results" query="cozy italian outdoor" hoveredId={RESTAURANTS.find(r => r.cluster === 7)?.id} />
+        </DCArtboard>
+        <DCArtboard label="Mobile · Bottom sheet full" width={390} height={844}>
+          <MobileResults theme="light" />
+        </DCArtboard>
+        <DCPostIt top={-20} left={2940} width={210} rotate={2}>
+          Similarity bar = 1px line that fills proportionally. No percentage shown.
+        </DCPostIt>
+      </DCSection>
+
+      <DCSection
+        title="FML · Restaurant Detail"
+        subtitle="Full page, not modal. 56px display name, tabular stats, columned review snippets, horizontal similar-places scroll."
+      >
+        <DCArtboard label="Desktop · Light · 1440×900" width={1440} height={900}>
+          <DesktopFrame theme="light" screen="detail" detailId={1} />
+        </DCArtboard>
+        <DCArtboard label="Desktop · Dark · 1440×900" width={1440} height={900}>
+          <DesktopFrame theme="dark" screen="detail" detailId={1} />
+        </DCArtboard>
+        <DCArtboard label="Mobile · Light" width={390} height={844}>
+          <MobileDetail theme="light" />
+        </DCArtboard>
+        <DCArtboard label="Mobile · Dark" width={390} height={844}>
+          <MobileDetail theme="dark" />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection
+        title="FML · Cluster Explorer"
+        subtitle="Bottom sheet at 82% viewport height. 50 clusters in a grid; keywords lead, meta follows."
+      >
+        <DCArtboard label="Desktop · Light · 1440×900" width={1440} height={900}>
+          <DesktopFrame theme="light" screen="home" showExplorer />
+        </DCArtboard>
+        <DCArtboard label="Desktop · Dark · 1440×900" width={1440} height={900}>
+          <DesktopFrame theme="dark" screen="home" showExplorer />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection
+        title="FML · Command Palette"
+        subtitle="⌘K. Grouped items: action, search, suggest, cluster. Keyboard-navigable."
+      >
+        <DCArtboard label="Desktop · Light · 1440×900" width={1440} height={900}>
+          <DesktopFrame theme="light" screen="home" showCmdK />
+        </DCArtboard>
+        <DCArtboard label="Desktop · Dark · 1440×900" width={1440} height={900}>
+          <DesktopFrame theme="dark" screen="home" showCmdK />
+        </DCArtboard>
+        <DCPostIt top={-20} left={2940} width={230} rotate={-1}>
+          Live prototype at "FML Prototype.html" — ⌘K actually works, theme toggle persists.
+        </DCPostIt>
+      </DCSection>
+
+      <div style={{ padding: '40px 60px 0', maxWidth: 900, fontFamily: T.mono, fontSize: 12, color: 'rgba(60,50,40,0.8)', lineHeight: 1.6 }}>
+        <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>Notes</div>
+        <div>· Accent: deep indigo #1E3A8A (light) / lifted indigo #818CF8 (dark) — single color, never for decoration, only to signal "this is active / selected / primary".</div>
+        <div>· No gradients, no shadows heavier than a 1px line. Glass panels use 22px backdrop-blur + subtle 1px border.</div>
+        <div>· All transitions 160-280ms, cubic-bezier(.22,.61,.36,1). Marker enlargement is 160ms.</div>
+        <div>· Dots: ~21K across boroughs, cluster-colored at 22% opacity (5% when dimmed by a result set).</div>
+        <div>· Body text never centered. Numbers always tabular-nums. Display uses tight -0.4 to -1.6 tracking.</div>
+      </div>
+    </DesignCanvas>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<Canvas />);
+</script>
+
+</body>
+</html>

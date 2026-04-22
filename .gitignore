@@ -49,3 +49,6 @@ ENV/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Claude Code local artifacts (plans, sessions, memory, hooks)
+.claude/

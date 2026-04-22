@@ -7,9 +7,14 @@ Merges steps 0 and 2.
 import gzip
 import json
 import os
+import re
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+
+# ZIP at end of address, optionally with a ZIP+4 suffix.
+# Anchoring at the end avoids matching street numbers earlier in the address.
+ZIP_RE = re.compile(r'(\d{5})(?:-\d{4})?\s*$')
 
 FOOD_RESTAURANT = {
     'Afghani restaurant', 'African restaurant', 'Alsace restaurant', 'American restaurant', 'Angler fish restaurant', 
@@ -97,6 +102,7 @@ for neighborhood in STATEN_ISLAND_LIST:
     BOROUGH_MAP[neighborhood] = "Staten Island"
 
 VALID_BOROUGHS = {"Manhattan", "Brooklyn", "Queens", "Bronx", "Staten Island"}
+VALID_ZIP_PREFIX = {"100", "101", "102", "103", "104", "110", "111", "112", "113", "114", "116"}
 
 TRANS_MARK = "(Translated by Google)"
 ORIG_MARK = "(Original)"
@@ -230,7 +236,14 @@ def process_restaurant_data(
                     n_permanently_closed += 1
                     continue
                     
-                # Filter 4: Determine borough
+                # Filter 4: Require a valid NYC ZIP prefix. Neighborhood-name matching alone
+                # is insufficient because upstate NY places share names with NYC neighborhoods
+                # (e.g. Clinton NY 13323 vs. Clinton in Manhattan, Red Hook NY 12571 vs. Brooklyn).
+                zip_match = ZIP_RE.search(address)
+                if not zip_match or zip_match.group(1)[:3] not in VALID_ZIP_PREFIX:
+                    continue
+
+                # Filter 5: Determine borough
                 parts = address.split(", ")
                 if len(parts) >= 2:
                     neighborhood = parts[-2]

@@ -1,0 +1,74 @@
+INFO:     Started server process [9952]
+INFO:     Waiting for application startup.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+<All keys matched successfully>
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+[state] loading sentence-transformer + PCA model...
+[state] memmap'ing 2.1M review embeddings (128-dim)...
+[state] loading review gmap_id column (for search) + full review text (for detail)...
+[state] loading meta (with aspect columns)...
+[state] loading cluster centroids + assignments + summary...
+[state] ready — 27,736 meta rows, 2,157,045 reviews, log_reviews_max=6.22
+INFO:     127.0.0.1:55271 - "GET /api/health HTTP/1.1" 200 OK
+Searching clusters: [1, 49, 2, 16, 36]
+Searching 272952 reviews across 2005 restaurants
+INFO:     127.0.0.1:55272 - "POST /api/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55283 - "GET /api/health HTTP/1.1" 200 OK
+Searching clusters: [40, 8, 30, 7, 45]
+Searching 122489 reviews across 1085 restaurants
+INFO:     127.0.0.1:55307 - "POST /api/search HTTP/1.1" 200 OK
+Searching clusters: [3, 44, 21, 28, 7]
+Searching 244648 reviews across 1242 restaurants
+INFO:     127.0.0.1:55309 - "POST /api/search HTTP/1.1" 200 OK
+Searching clusters: [30, 29, 21, 14, 8]
+Searching 150514 reviews across 1278 restaurants
+INFO:     127.0.0.1:55311 - "POST /api/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55313 - "GET /api/restaurant/0x89c25f8bcb4cc807%3A0x10883e51b7641002 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55315 - "GET /api/restaurant/0x89c25f8bcb4cc807%3A0x10883e51b7641002/reviews?page=1&page_size=3 HTTP/1.1" 200 OK
+Searching clusters: [36, 28, 16, 43, 22]
+Searching clusters: [36, 28, 16, 43, 22]
+Searching clusters: [36, 28, 16, 43, 22]
+Searching 285135 reviews across 1889 restaurants
+Searching 285135 reviews across 1889 restaurants
+Searching 285135 reviews across 1889 restaurants
+Searching clusters: [36, 28, 16, 43, 22]
+Searching 285135 reviews across 1889 restaurants
+Searching clusters: [36, 28, 16, 43, 22]
+Searching 285135 reviews across 1889 restaurants
+INFO:     127.0.0.1:55336 - "POST /api/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55332 - "POST /api/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55334 - "POST /api/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55338 - "POST /api/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55340 - "POST /api/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55349 - "GET /api/restaurant/0x89dd0ae458f3da47%3A0xb20abf79515c6bbc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55351 - "GET /api/restaurant/0x89dd0ae458f3da47%3A0xb20abf79515c6bbc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55352 - "GET /api/restaurant/0x89dd0ae458f3da47%3A0xb20abf79515c6bbc/reviews?page=1&page_size=8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55350 - "GET /api/restaurant/0x89dd0ae458f3da47%3A0xb20abf79515c6bbc/reviews?page=1&page_size=8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55357 - "GET /api/restaurant/0x89d96a08f47b0827%3A0x6bb6cdb8e883a14b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55359 - "GET /api/restaurant/0x89d96a08f47b0827%3A0x6bb6cdb8e883a14b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55358 - "GET /api/restaurant/0x89d96a08f47b0827%3A0x6bb6cdb8e883a14b/reviews?page=1&page_size=8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55360 - "GET /api/restaurant/0x89d96a08f47b0827%3A0x6bb6cdb8e883a14b/reviews?page=1&page_size=8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55366 - "POST /api/search HTTP/1.1" 422 Unprocessable Entity
+INFO:     127.0.0.1:55368 - "POST /api/search HTTP/1.1" 422 Unprocessable Entity
+INFO:     127.0.0.1:55374 - "POST /api/search HTTP/1.1" 422 Unprocessable Entity
+INFO:     127.0.0.1:55376 - "POST /api/search HTTP/1.1" 422 Unprocessable Entity
+Searching clusters: [49, 1, 2, 16, 36]
+Searching 272952 reviews across 2005 restaurants
+INFO:     127.0.0.1:55382 - "POST /api/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55387 - "GET /api/restaurant/0x89c2f60df3155a33%3A0x93caea71ca740bf6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55389 - "GET /api/restaurant/0x89c2f60df3155a33%3A0x93caea71ca740bf6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55388 - "GET /api/restaurant/0x89c2f60df3155a33%3A0x93caea71ca740bf6/reviews?page=1&page_size=8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55390 - "GET /api/restaurant/0x89c2f60df3155a33%3A0x93caea71ca740bf6/reviews?page=1&page_size=8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55393 - "GET /api/restaurant/0x89c3ca9f64301451%3A0x4ae6ec35401ebd4f HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55398 - "GET /api/restaurant/0x89c3ca9f64301451%3A0x4ae6ec35401ebd4f HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55397 - "GET /api/restaurant/0x89c3ca9f64301451%3A0x4ae6ec35401ebd4f/reviews?page=1&page_size=8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55399 - "GET /api/restaurant/0x89c3ca9f64301451%3A0x4ae6ec35401ebd4f/reviews?page=1&page_size=8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55401 - "GET /api/restaurant/0x89c3ca9f64301451%3A0x4ae6ec35401ebd4f/reviews?page=2&page_size=8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55403 - "GET /api/restaurant/0x89c3ca9f64301451%3A0x4ae6ec35401ebd4f/reviews?page=3&page_size=8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55405 - "GET /api/restaurant/0x89c3ca9f64301451%3A0x4ae6ec35401ebd4f/reviews?page=4&page_size=8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55410 - "GET /api/restaurant/0x89c25994cdac5b4b%3A0x639da12ecdd3a36c HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55412 - "GET /api/restaurant/0x89c25994cdac5b4b%3A0x639da12ecdd3a36c HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55411 - "GET /api/restaurant/0x89c25994cdac5b4b%3A0x639da12ecdd3a36c/reviews?page=1&page_size=8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55413 - "GET /api/restaurant/0x89c25994cdac5b4b%3A0x639da12ecdd3a36c/reviews?page=1&page_size=8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55416 - "GET /api/health HTTP/1.1" 200 OK

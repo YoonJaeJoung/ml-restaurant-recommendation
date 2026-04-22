@@ -67,6 +67,7 @@ The raw dataset used for this project (Google Local Reviews) is extremely large 
    
    **Processing Pipeline Details:**
    - **Borough Filtering**: Identifies NYC-specific restaurants and maps them to one of the 5 boroughs.
+   - **ZIP-Prefix Guard**: Requires the address to end with a 5-digit ZIP whose first three digits belong to NYC (`100/101/102/103/104/110/111/112/113/114/116`). Necessary because several NYC neighborhood names also appear upstate (e.g. Clinton NY 13323, Red Hook NY 12571, Schuylerville NY 12871), so the neighborhood-name match alone would leak non-NYC restaurants. The current meta parquet and review embeddings on disk predate this guard — `src/7_similarity.py` applies the same ZIP filter at query time so stale artifacts still return NYC-only results.
    - **Status Filtering**: Automatically excludes any businesses marked as `"Permanently closed"` in the Google metadata.
    - **Fault-Tolerant Extraction**: Uses line-based checkpointing (`review_processing_checkpoint.json`). If interrupted, the script resumes from the exact position in the multi-gigabyte raw JSON file.
    - **Strict Language Filter**: 
@@ -348,67 +349,51 @@ print(results)
 
 ## Ranking & ABSA
 
-Layers 2–3 of the recommendation pipeline: aspect-based sentiment scoring and personalised re-ranking of the candidates returned by semantic search.
+Layers 2–3 of the recommendation pipeline: aspect-based sentiment scoring (precomputed offline, stored directly in the meta parquet) and personalised re-ranking at query time.
 
 ### Architecture
 
 ```
-Layer 1  src/7_similarity.py          → top-100 candidate restaurants (semantic search)
-Layer 2  src/ranking/absa.py        → per-restaurant aspect scores (offline precompute)
-Layer 3  src/ranking/__init__.py    → final_score = α·avg_rating_norm
-                                                   + β·aspect_weighted_norm
-                                                   + γ·log(1+num_reviews)_norm
+Layer 1  src/7_similarity.py          → top-N candidates (cluster-aware PCA semantic search)
+Layer 2  src/8_ranking.py             → offline ABSA precompute (writes 4 columns into meta parquet)
+Layer 3  src/ranking.py               → query-time ranker:
+                                         final = α · rating/5
+                                               + β · aspect_weighted (price blended with $$ tier)
+                                               + γ · log1p(reviews) / global_max
+Layer 4  src/9_search_test_ranking.py → CLI that ties Layer 1 + 3 together for testing
 ```
 
-All ranking code lives in the `src/ranking/` package:
+Files (flat, under `src/`):
 
-| File | Description |
+| File | Role |
 |---|---|
-| `src/ranking/__init__.py` | `rank_candidates`, `add_price_tier_score`, `sensitivity_analysis` |
-| `src/ranking/absa.py` | ABSA precompute, `get_aspect_prefs`, validation helpers |
-| `src/ranking/demo_search.py` | Standalone Streamlit search demo |
-| `src/ranking/scripts/` | Numbered run scripts (see pipeline below) |
-
-`src/absa.py` is a backward-compatibility shim that re-exports from `src/ranking/absa.py`.
-
----
+| `src/absa.py` | Importable ABSA library: keyword tables, `get_aspect_prefs`, `precompute_all_aspect_scores`, validation helpers |
+| `src/similarity.py` | `importlib` wrapper around `src/7_similarity.py` so other code can `from src.similarity import ...` despite the digit-prefix filename |
+| `src/ranking.py` | Importable ranker: `rank_candidates`, `tier_to_score`, normalization helpers |
+| `src/8_ranking.py` | Standalone CLI — runs `precompute_all_aspect_scores` end-to-end and writes back into `data/processed/meta-NYC-restaurant.parquet` |
+| `src/9_search_test_ranking.py` | Interactive terminal CLI that runs the full search + rank pipeline |
+| `src/10_query_construction.py` | CLI that builds a query string from 4 toggle questions |
 
 ### ABSA Score Semantics
 
-Aspect scores are produced by **VADER compound sentiment** on keyword-matched review clauses, then **Bayesian-smoothed** using global priors, and finally **min-max normalized to [0, 1]** within each candidate set at ranking time.
+Aspect scores are produced by **VADER compound sentiment** on keyword-matched review clauses, then **Bayesian-smoothed** using global priors, and finally **globally min-max normalized to [0, 1]** across the ~19.5k restaurants that pass the ≥15-review filter. The globally-normalized scores are written into the meta parquet as four new columns: `aspect_food`, `aspect_service`, `aspect_price`, `aspect_wait_time`.
+
+Global (not per-candidate) normalization is used so the stored scores are stable per restaurant, comparable across queries, and interpretable as absolute positions within the dataset.
 
 **Score direction:**
-- `price` high score → **cheap / good value** (not expensive)
-- `wait_time` high score → **short wait** (not crowded/slow)
-- `food`, `service` high score → positive sentiment
+- `aspect_price` high → **cheap / good value**
+- `aspect_wait_time` high → **short wait**
+- `aspect_food`, `aspect_service` high → positive sentiment
 
-This means high scores always = user-desirable, so no sign-flip is needed after applying user weights.
+High score always means "user-desirable" — no sign flips needed.
 
----
-
-### Aspect Keywords
-
-Four aspects tracked (`ASPECT_KEYWORDS` in `src/ranking/absa.py`):
-
-| Aspect | Example keywords |
-|---|---|
-| `food` | pizza, ramen, sushi, burger, taste, flavor, portion, … (42 keywords) |
-| `service` | service, staff, waiter, friendly, attentive, rude, helpful, … |
-| `price` | cheap, expensive, affordable, value, overpriced, reasonable, … |
-| `wait_time` | wait, line, queue, slow, quick, fast, crowded, minutes, … |
-
-`ambience` was removed after human validation showed only 28.6% recall — keyword coverage in review text was insufficient.
-
-Keywords were validated via word-frequency analysis on the full review corpus (Step 0).
-
----
+Restaurants with fewer than 15 reviews (not present in the review-filtered parquet) get `NaN` in all four columns.
 
 ### Query Intent Parsing
 
 `get_aspect_prefs(query)` infers aspect importance from a natural-language query.
 
-**Design decisions:**
-- **Mention = important**: any keyword hit adds `+POSITIVE_BOOST (0.20)` to that aspect's weight. Negation is intentionally ignored — "no long wait" and "fast service" both mean the user cares about wait time. The ABSA scores already encode direction (high wait_time = short wait), so there is no need to detect whether the user wants more or less of each aspect.
+- **Mention = important**: any keyword hit adds `+0.20` to that aspect's weight. Negation is intentionally ignored — "no long wait" and "fast service" both mean the user cares about wait time.
 - **Default weights** (used when no keywords detected):
 
 | Aspect | Default weight |
@@ -418,41 +403,28 @@ Keywords were validated via word-frequency analysis on the full review corpus (S
 | `price` | 0.20 |
 | `wait_time` | 0.10 |
 
----
+The returned weights are auto-normalized to sum to 1 before being applied.
 
-### Per-Aspect Normalization
+### Query-Time Ranking Formula
 
-Before computing `aspect_weighted = Σ user_pref[aspect] × score[aspect]`, each aspect is **independently min-max normalized within the candidate set**. This ensures that different baseline means across aspects (e.g. `wait_time` is systematically lower due to negativity bias in reviews, `price` is higher after tier blending) do not distort the effect of user weights. Without this step, setting a high `wait_time` weight would have less effect than the same weight on `price`, because the raw score ranges differ.
-
----
-
-### Google Maps Price Tier Fusion
-
-In addition to ABSA price sentiment, we fuse the Google Maps price tier (`$`/`$$`/`$$$`/`$$$$`) into the `price` dimension:
-
-| Tier | Score |
-|---|---|
-| `$` | 1.0 |
-| `$$` | 0.75 |
-| `$$$` | 0.25 |
-| `$$$$` | 0.0 |
-| missing | 0.5 (neutral) |
-
-The final price score is: `0.5 × absa_price_normalized + 0.5 × tier_score`
-
-This ensures that cheap restaurants get a price bonus even when reviewers don't explicitly mention cost — common for budget restaurants where customers already expect low prices and don't comment on them.
-
----
-
-### Ranking Formula
+At query time, `src/ranking.py:rank_candidates` computes:
 
 ```
-final_score = α × avg_rating_norm
-            + β × aspect_weighted_norm
-            + γ × log(1 + num_reviews)_norm
+aspect_weighted = w_food · aspect_food
+                + w_service · aspect_service
+                + w_price · (0.5 · aspect_price + 0.5 · tier_score)
+                + w_wait_time · aspect_wait_time
+
+final_score = α · (avg_rating / 5)
+            + β · aspect_weighted
+            + γ · (log1p(num_reviews) / global_max_log1p_reviews)
 ```
 
-**Baseline weights** (selected via sensitivity analysis):
+- User weights `w_*` are auto-normalized to sum to 1.
+- `tier_score` maps Google Maps `$`/`$$`/`$$$`/`$$$$` → `1.0`/`0.75`/`0.25`/`0.0` (missing → `0.5`). Only the `price` aspect is blended with the tier, and the blend happens at query-time so the raw ABSA price score stays inspectable in the parquet.
+- `global_max_log1p_reviews` is cached at startup for cross-query comparability.
+
+**Baseline α/β/γ** (auto-normalized if the caller changes them):
 
 | Parameter | Value | Role |
 |---|---|---|
@@ -460,148 +432,56 @@ final_score = α × avg_rating_norm
 | β | 0.5 | Aspect-weighted ABSA score |
 | γ | 0.1 | Review count (popularity) |
 
-All three components are independently min-max normalized within the candidate set before combining. The `demo_search.py` UI auto-normalizes α/β/γ if the user adjusts them, so they don't need to sum to 1 manually.
+### Running the Precompute
 
----
-
-### Four-Batch Execution Pipeline
-
-The ranking system was built and validated in four human-gated batches:
-
-```
-Batch 1 ──────────────────────────────────────────────────────────
-  ①  Build all functions (Steps 0–5 code in src/ranking/)
-  ②  Run frequency_analysis() → inspect word counts
-      ↓
-      [Human] Review frequency output → decide ASPECT_KEYWORDS updates
-
-Batch 2 ──────────────────────────────────────────────────────────
-  ③  Run precompute_all_aspect_scores() with updated keywords
-      → data/processed/aspect_scores.parquet  (~1–2 h, 21,296 restaurants)
-  ④  Sample 100 sentences → data/validation/sample_sentences.csv
-      ↓
-      [Human] Manually label 'aspects' column (before viewing system output
-               to avoid confirmation bias)
-
-Batch 3 ──────────────────────────────────────────────────────────
-  ⑤  validate_absa_accuracy() + validate_query_detection()
-  ⑥  sensitivity_analysis() → α/β/γ comparison table
-      → results/sensitivity_analysis.csv
-      ↓
-      [Human] Choose α/β/γ combination
-
-Batch 4 ──────────────────────────────────────────────────────────
-  ⑦  Run demo with selected weights → top-5 per query
-      → results/sensitivity_latest_blind.csv  (weight_set hidden)
-      ↓
-      [Human] Score results 0/1/2 (relevance to query + aspect match)
-  ⑧  Compute per-weight-set average → final report
-```
-
-Run scripts in order from the project root:
+From project root, inside the venv:
 
 ```bash
-python src/ranking/scripts/step0_frequency_analysis.py
-python src/ranking/scripts/step1_precompute.py
-python src/ranking/scripts/step2_validation.py
-python src/ranking/scripts/step3_sensitivity_demo.py
+python src/8_ranking.py
 ```
 
----
+This takes ~5 minutes on a laptop and writes four new columns directly into `data/processed/meta-NYC-restaurant.parquet`. Re-running the script is safe — stale aspect columns are dropped and re-computed.
 
-### Interactive Search Demo
+Phase 1 estimates global priors from a 10% sample of restaurants (no smoothing). Phase 2 computes Bayesian-smoothed scores for every restaurant with ≥15 reviews. `groupby` is used to iterate reviews by restaurant in O(n) time.
+
+### Running the CLI Search+Rank Test
 
 ```bash
-streamlit run src/ranking/demo_search.py
+python src/9_search_test_ranking.py
 ```
 
-Features:
-- Natural-language query → semantic search → top-100 candidates
-- Auto-detected aspect preferences displayed as adjustable sliders (food / service / price / wait time)
-- α / β / γ ranking weight expander (auto-normalized)
-- Results shown on map + sortable table with price tier (`$`/`$$`) column
-- Every new search resets all sliders to auto-detected values
+Interactive REPL — type a query, see top 10 with each score component, auto-detected aspect preferences, and timing breakdown.
 
----
+### Output
 
-### Output Files
+Four new columns appended to `data/processed/meta-NYC-restaurant.parquet`:
 
-| File | Description |
-|---|---|
-| `data/processed/aspect_scores.parquet` | Per-restaurant ABSA scores (Batch 2 output) |
-| `data/validation/sample_sentences.csv` | 100 sentences for manual annotation |
-| `data/validation/sample_sentences_labeled.csv` | Human-labeled annotation file |
-| `results/sensitivity_analysis.csv` | α/β/γ grid search results |
-| `results/sensitivity_latest.csv` | Per-query top-5 with weight_set labels |
-| `results/sensitivity_latest_blind.csv` | Blind version for human scoring |
+| Column | Range | Description |
+|---|---|---|
+| `aspect_food` | [0, 1] | Globally-normalized Bayesian-smoothed food sentiment |
+| `aspect_service` | [0, 1] | Same, for service |
+| `aspect_price` | [0, 1] | Raw (unblended) price sentiment — blending happens at query-time |
+| `aspect_wait_time` | [0, 1] | Same, for wait time |
 
-## 🍕 NYC Restaurant Explorer: Interactive Map（Frame, more functions coming...）
-1. Features
-- **Interactive Map** — Restaurants are plotted on a Mapbox map using latitude/longitude coordinates, color-coded by cluster category using a discrete color palette.
-- **Cluster Filter** — A sidebar multiselect control lets users choose which restaurant clusters to display. Clusters are sorted numerically, and the first 5 are shown by default to reduce initial load time.
-- **Rating Filter** — A sidebar slider lets users set a minimum average rating (1.0–5.0, default 3.5), filtering out lower-rated restaurants.
-- **Restaurant Count** — The sidebar dynamically shows the total number of restaurants matching the current filters.
-- **Two-Column Layout** — The main view is split into a map panel (left, 2/3 width) and a sortable restaurant details list (right, 1/3 width), displaying name, borough, average rating, and cluster.
-- **Hover Details** — Hovering over a map point shows the restaurant name, cluster ID, average rating, and borough.
-- **Smart Recommendation Placeholder** — A section at the bottom of the page previews a planned similarity-based recommendation feature using embedding vectors.
+## Web App
 
-2.  Requirements
+A FastAPI backend + Vite / React SPA sit on top of the pipeline and expose
+everything as an interactive map-based search — natural-language queries,
+filter-by-borough / radius / drawn polygon / viewport, day & time filter,
+aspect-based sort, inline detail panel, and a browse-all clustered map view
+of the entire qualifying NYC restaurant set.
 
-- Python 3.8+
-- [Streamlit](https://streamlit.io/)
-- [Pandas](https://pandas.pydata.org/)
-- [Plotly](https://plotly.com/python/)
+The backend imports the stable library code from `src/` (`src.absa`,
+`src.similarity`, `src.ranking`) but otherwise owns its own routes,
+Pydantic schemas, state singleton, and geographic / time filtering. Artifacts
+are loaded once at startup and shared across requests. The old
+`src/app.py` Streamlit prototype has been superseded.
 
-Install dependencies with:
-
-```bash
-pip install streamlit pandas plotly
-```
-
----
-
-3. Data Requirements
-
-The app expects a CSV file at the following path:
-
-```
-results/clustering/restaurant_clusters.csv
-```
-
-The CSV must contain at least these columns:
-
-| Column | Description |
-|---|---|
-| `latitude` | Restaurant latitude coordinate |
-| `longitude` | Restaurant longitude coordinate |
-| `cluster` | Integer cluster ID assigned by the clustering model |
-| `name` | Restaurant name |
-| `avg_rating` | Average user rating (1.0–5.0) |
-| `borough` | NYC borough (e.g., Manhattan, Brooklyn) |
-
-Rows with missing `latitude` or `longitude` values are automatically dropped on load.
-
----
-
-4.  How to Open
-
-From the project root directory, run:
-
-```bash
-streamlit run src/app.py
-```
-The app will open in your browser at `http://localhost:8501` by default.
-
-5. API Notes
-
-The following Plotly/Streamlit deprecations have been resolved in `src/app.py`:
-
-- `px.scatter_mapbox` → `px.scatter_map` (Plotly MapLibre migration)
-- `mapbox_style` → `map_style` in `fig.update_layout()`
-- `use_container_width=True` → `width='stretch'` (Streamlit, removed after 2025-12-31)
-
-6. Planned Features
-- **Similarity-Based Recommendations** — Input a restaurant you like and find the most similar ones using embedding vector search.
+👉 **See [`app/README.md`](app/README.md) for the full app guide** —
+architecture diagram, module-by-module backend breakdown (main, state,
+schemas, search, detail, browse, geo, hours, query_builder), frontend
+structure (views + components + hooks + api), API spec, design system,
+environment setup (Mapbox token), and run / smoke-test commands.
 
 ## Repo Structure
 
@@ -609,43 +489,39 @@ The following Plotly/Streamlit deprecations have been resolved in `src/app.py`:
 ml-restaurant-recommendation/
 ├── README.md
 ├── requirements.txt
-├── CLAUDE.md                  # AI assistant instructions for this project
+├── CLAUDE.md                        # AI assistant instructions for this project
 ├── documents/
 │   ├── writtenProposal.md
 │   ├── designDocument.md
 │   ├── dataDocumentation.md
 │   ├── brainstorming.md
-│   └── ranking_plan_final.md  # Detailed ranking pipeline design document
-├── data/                      # Large data artifacts (partially LFS tracked)
-│   ├── raw/                   # Raw Google Local Reviews JSON (Excluded)
-│   ├── processed/             # Cleaned datasets and precomputed artifacts
-│   │   ├── ...-filtered.parquet   # Review dataset
-│   │   ├── meta-NYC-....parquet   # Restaurant metadata
-│   │   └── aspect_scores.parquet  # ABSA scores
-│   └── validation/            # Manual annotation datasets
+│   └── ranking_plan_final.md
+├── data/                            # Large data artifacts (partially LFS tracked)
+│   ├── raw/                         # Raw Google Local Reviews JSON (Excluded)
+│   └── processed/                   # Cleaned datasets and precomputed artifacts
+│       ├── review-NYC-...-filtered.parquet
+│       └── meta-NYC-restaurant.parquet   # Now includes 4 aspect_* columns
 ├── notebooks/
-│   ├── exploration.ipynb
-│   └── clustering_analysis.ipynb
 ├── results/
-│   ├── pca/                   # Production PCA embeddings & models
-│   │   ├── ..._pca.npy (LFS)  # review/meta embeddings
-│   │   ├── pca_model.pkl      (LFS)
-│   │   └── evaluation/        # Recall metrics and tradeoff plots
-│   └── clustering/            # Production cluster assignments
-│       ├── ... (mmap/csv)     # assignments and centroids
-│       └── evaluation/        # Grid search, summaries, map, wordclouds
-├── src/
-│   ├── 1_data_processing.py   # Data loading, cleaning, filtering
-│   ├── 2_embedding.py         # Sentence embedding generation
-│   ├── 4_pca.py               # PCA reduction (768 → 128)
-│   ├── 4a_pca_evaluation.py   # PCA component-count evaluation
-│   ├── 6c_clustering_evaluation.py # Consolidated evaluation & viz
-│   ├── 7_similarity.py        # Production search engine
-│   ├── app.py                 # Interactive Map UI
-│   ├── 8_ranking/             # Re-Ranking & Sentiment package
-│   │   ├── absa.py            # Aspect-Based Sentiment logic
-│   │   ├── demo_search.py     # Streamlit ranking demo
-│   │   └── scripts/           # Pipeline run scripts (Step 0-3)
-│   └── deprecated/            # Legacy and merged scripts
-└── .gitattributes             # Git LFS configuration
+│   ├── pca/                         # Production PCA embeddings & models (LFS)
+│   └── clustering/                  # Production cluster assignments + summary json
+├── src/                             # ML pipeline (CLI scripts + importable libs)
+│   ├── 1_data_processing.py         # CLI: data loading, cleaning, filtering
+│   ├── 2_embedding.py               # CLI: sentence embedding generation
+│   ├── 4_pca.py                     # CLI: PCA reduction (768 → 128)
+│   ├── 4a_pca_evaluation.py         # CLI: PCA component-count evaluation
+│   ├── 6c_clustering_evaluation.py  # CLI: consolidated evaluation & viz
+│   ├── 7_similarity.py              # CLI: production search engine
+│   ├── 8_ranking.py                 # CLI: offline ABSA precompute → meta parquet
+│   ├── 9_search_test_ranking.py     # CLI: interactive search + rank REPL
+│   ├── 10_query_construction.py     # CLI: 4-toggle query builder
+│   ├── absa.py                      # Importable lib: ABSA core + get_aspect_prefs
+│   ├── similarity.py                # Importable lib: importlib wrapper for 7_similarity
+│   └── ranking.py                   # Importable lib: query-time ranking formula
+├── app/                             # Web app — see app/README.md for details
+│   ├── README.md                    # Backend + frontend architecture guide
+│   ├── backend/                     # FastAPI service (routes, state, search, detail, …)
+│   ├── frontend/                    # Vite + React SPA (views, components, hooks, …)
+│   └── design sample/               # Early static design mocks
+└── .gitattributes                   # Git LFS configuration
 ```
