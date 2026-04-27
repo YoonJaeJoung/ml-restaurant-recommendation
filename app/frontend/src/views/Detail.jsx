@@ -140,11 +140,12 @@ export default function Detail({ gmapId, lastSearchScore, onBack, variant = 'pag
 
   // Price uses RAW `aspect_price` (not blended). The 50/50 blend is only used
   // by the overall ranker; surfaced values stay interpretable as pure ABSA.
+  // `pct` is a percentile rank within all NYC restaurants (display-only).
   const aspectCells = [
-    { label: 'Food',      Icon: IconUtensils,                        v: toFive(aspects.food)      },
-    { label: 'Service',   MSName: 'concierge',                       v: toFive(aspects.service)   },
-    { label: 'Price',     Icon: IconDollar,                          v: toFive(aspects.price)     },
-    { label: 'Wait time', Icon: IconClock,                           v: toFive(aspects.wait_time) },
+    { label: 'Food',      Icon: IconUtensils,    v: toFive(aspects.food),      pct: null },
+    { label: 'Service',   MSName: 'concierge',   v: toFive(aspects.service),   pct: null },
+    { label: 'Price',     Icon: IconDollar,      v: toFive(aspects.price),     pct: aspects.price_pct ?? null     },
+    { label: 'Wait time', Icon: IconClock,       v: toFive(aspects.wait_time), pct: aspects.wait_time_pct ?? null },
   ]
 
   return (
@@ -196,7 +197,7 @@ export default function Detail({ gmapId, lastSearchScore, onBack, variant = 'pag
               </div>
             )}
             <div className="scores-grid aspects">
-              {aspectCells.map(({ label, Icon, MSName, v }) => {
+              {aspectCells.map(({ label, Icon, MSName, v, pct }) => {
                 const sentiment = sentimentName(v)
                 return (
                   <div key={label} className="score-cell">
@@ -209,6 +210,11 @@ export default function Detail({ gmapId, lastSearchScore, onBack, variant = 'pag
                       {v == null ? '—' : <>{v.toFixed(1)}<span className="out-of">/5</span></>}
                     </div>
                     <div className="bar" style={{ width: `${Math.max(0, Math.min(5, v || 0)) * 20}%` }} />
+                    {pct != null && (
+                      <div className="pct-line">
+                        Better than <strong>{pct}%</strong> of NYC restaurants
+                      </div>
+                    )}
                   </div>
                 )
               })}

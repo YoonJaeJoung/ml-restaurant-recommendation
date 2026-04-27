@@ -25,6 +25,18 @@ PRIORITY_BY_TIME = {
                   "Quick and easy", "Vegetarian friendly", "Good brunch", "None"],
 }
 
+# ── Time-of-day → occasion options (mirrors OCCASION_BY_TIME in the frontend) ─
+OCCASION_BY_TIME = {
+    "breakfast": ["Solo breakfast", "Catching up with friends",
+                  "Lunch with coworkers", "Quick bite"],
+    "lunch":     ["Lunch with coworkers", "Catching up with friends",
+                  "Solo meal", "Family lunch", "Quick bite"],
+    "dinner":    ["Date night", "Family dinner", "Catching up with friends",
+                  "Solo meal", "Celebration"],
+    "anytime":   ["Date night", "Family dinner", "Lunch with coworkers",
+                  "Catching up with friends", "Solo meal", "Celebration"],
+}
+
 
 def get_time_slot(visit: datetime | None, any_time: bool) -> str:
     if any_time or visit is None:
@@ -115,14 +127,10 @@ def main():
     visit, any_time = ask_visit_time()
     time_slot = get_time_slot(visit, any_time)
 
-    occasion = ask_single("What's the occasion?", [
-        "Date night",
-        "Family dinner",
-        "Lunch with coworkers",
-        "Catching up with friends",
-        "Solo meal",
-        "Celebration",
-    ])
+    occasion = ask_single(
+        f"What's the occasion? (time slot: {time_slot})",
+        OCCASION_BY_TIME[time_slot],
+    )
 
     vibe = ask_single("What vibe are you looking for?", [
         "Cozy and intimate",

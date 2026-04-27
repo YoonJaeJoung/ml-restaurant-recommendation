@@ -10,6 +10,17 @@ const PRIORITY_BY_TIME = {
   anytime:   ['Great cocktails', 'Good for groups', 'Late night', 'Quick and easy', 'Vegetarian friendly', 'Good brunch', 'None'],
 }
 
+// `occasion` is single-select and also varies by time slot — Date night and
+// Family dinner don't make sense at 9 AM, Solo breakfast doesn't make sense
+// at 8 PM, etc. Mirrors the time-aware shape of `priority`.
+const OCCASION_BY_TIME = {
+  breakfast: ['Solo breakfast', 'Catching up with friends', 'Lunch with coworkers', 'Quick bite'],
+  lunch:     ['Lunch with coworkers', 'Catching up with friends', 'Solo meal', 'Family lunch', 'Quick bite'],
+  dinner:    ['Date night', 'Family dinner', 'Catching up with friends', 'Solo meal', 'Celebration'],
+  anytime:   ['Date night', 'Family dinner', 'Lunch with coworkers',
+              'Catching up with friends', 'Solo meal', 'Celebration'],
+}
+
 function getTimeSlot(visitDate, anyTime) {
   if (anyTime || !visitDate) return 'anytime'
   const hour = visitDate.getHours()
@@ -31,12 +42,6 @@ const BASE_QUESTIONS = [
     label: 'What vibe are you looking for?',
     options: ['Cozy and intimate', 'Lively and fun', 'Quiet and relaxed',
               'Upscale and fancy', 'Casual and laid-back', 'Outdoor seating'],
-  },
-  {
-    key: 'occasion',
-    label: "What's the occasion?",
-    options: ['Date night', 'Family dinner', 'Lunch with coworkers',
-              'Catching up with friends', 'Solo meal', 'Celebration'],
   },
 ]
 
@@ -60,15 +65,21 @@ export default function InspireBuilder({ initialQuery, initialToggles, visitDate
 
   const timeSlot = getTimeSlot(visitDate, anyTime)
   const priorityOptions = useMemo(() => PRIORITY_BY_TIME[timeSlot], [timeSlot])
+  const occasionOptions = useMemo(() => OCCASION_BY_TIME[timeSlot], [timeSlot])
 
-  // When the time filter changes, drop any stale priorities that aren't valid
-  // for the new time slot — otherwise hidden selections silently leak into the
-  // search query.
+  // When the time filter changes, drop any stale priority/occasion picks that
+  // aren't valid for the new slot — otherwise hidden selections silently leak
+  // into the search query.
   useEffect(() => {
     setToggles(prev => {
-      const cleaned = asPriorityArray(prev.priority).filter(p => priorityOptions.includes(p))
-      if (cleaned.length === asPriorityArray(prev.priority).length) return prev
-      const next = { ...prev, priority: cleaned }
+      const cleanedPriority = asPriorityArray(prev.priority).filter(p => priorityOptions.includes(p))
+      const cleanedOccasion = prev.occasion && occasionOptions.includes(prev.occasion)
+        ? prev.occasion
+        : null
+      const priorityChanged = cleanedPriority.length !== asPriorityArray(prev.priority).length
+      const occasionChanged = cleanedOccasion !== prev.occasion
+      if (!priorityChanged && !occasionChanged) return prev
+      const next = { ...prev, priority: cleanedPriority, occasion: cleanedOccasion }
       onChange?.(buildQueryFromToggles(next), next)
       return next
     })
@@ -104,6 +115,11 @@ export default function InspireBuilder({ initialQuery, initialToggles, visitDate
 
   const questions = [
     ...BASE_QUESTIONS,
+    {
+      key: 'occasion',
+      label: `What's the occasion? (${timeSlot})`,
+      options: occasionOptions,
+    },
     {
       key: 'priority',
       label: `Any other priorities? (${timeSlot} — pick any)`,

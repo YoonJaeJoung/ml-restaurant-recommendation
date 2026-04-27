@@ -120,6 +120,8 @@ def get_detail(gmap_id: str) -> RestaurantDetail | None:
         price=absa_price_raw,
         price_blended=price_blended,
         wait_time=_row_to_optional_float(r.get("aspect_wait_time")),
+        price_pct=_row_to_optional_int(r.get("aspect_price_pct")),
+        wait_time_pct=_row_to_optional_int(r.get("aspect_wait_time_pct")),
     )
 
     return RestaurantDetail(

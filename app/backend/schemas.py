@@ -92,6 +92,11 @@ class RestaurantSummary(BaseModel):
     aspect_price: Optional[float] = None                 # raw ABSA
     aspect_price_blended: Optional[float] = None         # 50/50 ABSA + $ tier
     aspect_wait_time: Optional[float] = None
+    # Percentile rank (0-100) within all NYC restaurants — display-only
+    # comparator for the Satisfaction Score tab. Source: aspect_*_pct
+    # columns precomputed in absa.py (only for price + wait_time).
+    aspect_price_pct: Optional[int] = None
+    aspect_wait_time_pct: Optional[int] = None
 
 
 class SearchResponse(BaseModel):
@@ -115,6 +120,10 @@ class AspectBreakdown(BaseModel):
     price: Optional[float] = None                # raw ABSA (not blended)
     price_blended: Optional[float] = None        # blended (ABSA + $$ tier)
     wait_time: Optional[float] = None
+    # Percentile rank within NYC. Only price and wait_time get a percentile
+    # (those are the aspects where absolute scores are hard to read).
+    price_pct: Optional[int] = None
+    wait_time_pct: Optional[int] = None
 
 
 class ReviewItem(BaseModel):

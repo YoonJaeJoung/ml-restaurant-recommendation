@@ -372,7 +372,7 @@ Files (flat, under `src/`):
 | `src/ranking.py` | Importable ranker: `rank_candidates`, `tier_to_score`, normalization helpers |
 | `src/8_ranking.py` | Standalone CLI — runs `precompute_all_aspect_scores` end-to-end and writes back into `data/processed/meta-NYC-restaurant.parquet` |
 | `src/9_search_test_ranking.py` | Interactive terminal CLI that runs the full search + rank pipeline |
-| `src/10_query_construction.py` | CLI that builds a query string from 4 toggle questions. The priority list is **dynamic** (varies by visit time slot — breakfast / lunch / dinner / anytime) and **multi-select** (pick any combination, or `None`). Mirrors `app/frontend/src/components/InspireBuilder.jsx` and `app/backend/query_builder.py`. |
+| `src/10_query_construction.py` | CLI that builds a query string from 4 toggle questions. The **occasion** and **priority** lists are both *dynamic* — they vary by visit time slot (`breakfast` / `lunch` / `dinner` / `anytime`); priority is additionally **multi-select** (pick any combination, or `None`). Mirrors `app/frontend/src/components/InspireBuilder.jsx` and `app/backend/query_builder.py`. |
 
 ### ABSA Score Semantics
 
@@ -561,7 +561,7 @@ ml-restaurant-recommendation/
 │   ├── 7_similarity.py              # CLI: production search engine
 │   ├── 8_ranking.py                 # CLI: offline ABSA precompute → meta parquet
 │   ├── 9_search_test_ranking.py     # CLI: interactive search + rank REPL
-│   ├── 10_query_construction.py     # CLI: 4-toggle query builder (priorities vary by time slot; multi-select)
+│   ├── 10_query_construction.py     # CLI: 4-toggle query builder (occasion + priority vary by time slot; priority multi-select)
 │   ├── absa.py                      # Importable lib: ABSA core + get_aspect_prefs
 │   ├── similarity.py                # Importable lib: importlib wrapper for 7_similarity
 │   └── ranking.py                   # Importable lib: query-time ranking formula

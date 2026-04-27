@@ -88,6 +88,8 @@ def _summary_rows(df: pd.DataFrame, limit: int) -> list[RestaurantSummary]:
             aspect_price=price_r,
             aspect_price_blended=price_blend,
             aspect_wait_time=waitt,
+            aspect_price_pct=_int_or_none(r.get("aspect_price_pct")),
+            aspect_wait_time_pct=_int_or_none(r.get("aspect_wait_time_pct")),
         ))
     return out
 
@@ -153,8 +155,11 @@ def do_search(req: SearchRequest) -> SearchResponse:
             retrieval_ms=retrieval_ms, rank_ms=0.0,
         )
 
-    # 4. Merge full meta (for lat/lon/hours/category/etc.) onto candidates if missing.
-    merge_cols = [c for c in ["address", "latitude", "longitude", "hours", "category"]
+    # 4. Merge full meta (for lat/lon/hours/category/percentile cols/etc.) onto
+    #    candidates if missing. The `aspect_*_pct` columns are display-only;
+    #    rank_candidates won't merge them on its own, so we pull them here.
+    merge_cols = [c for c in ["address", "latitude", "longitude", "hours", "category",
+                              "aspect_price_pct", "aspect_wait_time_pct"]
                   if c not in candidates.columns and c in STATE.meta.columns]
     if merge_cols:
         candidates = candidates.merge(
