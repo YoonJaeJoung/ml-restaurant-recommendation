@@ -28,7 +28,7 @@ def build_query(t: ToggleSelection, free_text: str | None = None) -> str:
         parts.append(t.vibe)
     if t.occasion:
         parts.append(t.occasion)
-    if t.priority and t.priority not in _PRIORITY_NONE:
+    if t.priority:
         if isinstance(t.priority, list):
             filtered = [p for p in t.priority if p not in _PRIORITY_NONE]
             if filtered:
