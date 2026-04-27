@@ -50,7 +50,7 @@ class ToggleSelection(BaseModel):
     occasion: Optional[str] = None
     vibe: Optional[str] = None
     cuisine: Optional[str] = None    # "No preference" treated as None
-    priority: Optional[str] = None   # "None" treated as None
+    priority: Optional[list[str]] = None   # multi-select, "None" treated as None
 
 
 class SearchRequest(BaseModel):
