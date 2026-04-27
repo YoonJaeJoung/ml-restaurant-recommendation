@@ -61,7 +61,7 @@ def main() -> None:
     print("Loading review ids, meta (with aspect cols), centroids, clusters...")
     reviews_df  = pd.read_parquet(REVIEW_PATH, columns=['gmap_id'])
     meta_df     = pd.read_parquet(META_PATH)
-    centroids   = np.load(CENTROIDS_PATH)
+    centroids   = np.load(CENTROIDS_PATH, allow_pickle=True)
     clusters_df = pd.read_csv(CLUSTERS_PATH)
 
     # Verify aspect cols exist (written by src/8_ranking.py)

@@ -27,7 +27,6 @@ We apply core ML algorithms from the course syllabus to natural language text da
 - **Aspect-Level Sentiment & Feature Weighting** — Extract sub-topics (service, food, ambience) and adjust weights based on user preferences.
 - **Content-Based Filtering** — Maintain a dynamic "user embedding" built from prior positive queries.
 - **Online Learning** — Update the user profile using post-visit feedback to continuously improve recommendations.
-- **Logistic Regression (Supervised Ranking)** — Combine text similarity, aspect weights, historical relevance, and star ratings to rank final results.
 
 ## Setup
  
@@ -48,10 +47,6 @@ This project uses `uv` for dependency management. To set up the local environmen
    ```bash
    uv pip install -r requirements.txt
    ```
-5. **Install Git LFS** (required for large data files):
-   - Install Git LFS: `brew install git-lfs`
-   - Initialize in repo: `git lfs install`
-   - Pull large files: `git lfs pull`
  
 ## Data Download Instructions
 
@@ -60,28 +55,7 @@ The raw dataset used for this project (Google Local Reviews) is extremely large 
 1. Navigate to the UCSD public dataset repository: [Google Local Reviews](https://mcauleylab.ucsd.edu/public_datasets/gdrive/googlelocal/)
 2. Download the desired state or category review JSON files (e.g. in our project, we use `review-New_York_10.json.gz`(New York 10-core) and `meta-New_York.json.gz`).
 3. Place the downloaded files directly into the `data/raw/` directory in this repository.
-5. **Run Data Processing**:
-   ```bash
-   python src/1_data_processing.py
-   ```
-   
-   **Processing Pipeline Details:**
-   - **Borough Filtering**: Identifies NYC-specific restaurants and maps them to one of the 5 boroughs.
-   - **ZIP-Prefix Guard**: Requires the address to end with a 5-digit ZIP whose first three digits belong to NYC (`100/101/102/103/104/110/111/112/113/114/116`). Necessary because several NYC neighborhood names also appear upstate (e.g. Clinton NY 13323, Red Hook NY 12571, Schuylerville NY 12871), so the neighborhood-name match alone would leak non-NYC restaurants. The current meta parquet and review embeddings on disk predate this guard — `src/7_similarity.py` applies the same ZIP filter at query time so stale artifacts still return NYC-only results.
-   - **Status Filtering**: Automatically excludes any businesses marked as `"Permanently closed"` in the Google metadata.
-   - **Fault-Tolerant Extraction**: Uses line-based checkpointing (`review_processing_checkpoint.json`). If interrupted, the script resumes from the exact position in the multi-gigabyte raw JSON file.
-   - **Strict Language Filter**: 
-     - Extracts English text from `(Translated by Google)` blocks.
-     - **Discards ANY review containing native Chinese/CJK characters** that haven't been translated, ensuring the embedding model only sees high-quality English text.
-   - **Semantic Downsampling**: Instead of taking the first 500 reviews, it sorts all valid reviews by **text length (detail)** and keeps the top 500 most descriptive reviews per restaurant.
-   - **Dynamic Threshold**: Currently set to keep restaurants with at least **15 valid English reviews**.
-   
-   The output is saved to `data/processed/meta-NYC-restaurant.parquet` and `data/processed/review-NYC-restaurant-filtered.parquet`.
-
-   > [!IMPORTANT]
-   > **Data Versioning Notice**: Most processed artifacts (Parquets, PCA embeddings) are tracked in this repository using **Git LFS**. However, the following are **EXCLUDED** from version control due to extreme size:
-   > - `data/raw/` (Raw JSON sources)
-   > - `data/processed/review_embeddings.npy` (6.2GB Full Embedding Matrix)
+4. Run `python src/0_data_processing.py` (ensure your environment is activated) to filter the metadata for NYC restaurants and add borough information. The output will be saved to `data/processed/meta-NYC-restaurant.json.gz`.
 
 ## Generating Embeddings
 
@@ -89,44 +63,42 @@ After downloading and processing the raw data, the next step is converting textu
 
 1. **Run the Embedding Script**:
    ```bash
-   python src/2_embedding.py
+   python src/1_embedding.py
    ```
 
    **Embedding Pipeline Details:**
-   - **Model**: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5).
-   - **Memory Management**: Uses `np.memmap` to write embeddings directly to disk, allowing millions of reviews to be processed without OOM errors.
-   - **Resumability**: Includes a JSON checkpointing system to resume from specific chunks if interrupted.
+   - **Model**: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) (utilized for its asymmetric search capabilities: prepending "search_document" to corpus texts).
+   - **Truncation**: `max_seq_length = 256` tokens (effectively capturing ~200-word reviews). By clipping the model's default 8192 context window, we massively accelerate computation and prevent OOM errors.
    - **Filtering & Downsampling**:
-     - *Minimum filter*: Excludes inactive restaurants with $\le 15$ valid English reviews.
-     - *Maximum limit*: Caps highly-reviewed restaurants to the top `500` most detailed reviews per restaurant to balance the dataset footprint.
-   - **Hardware Acceleration**: Automatically detects and leverages **CUDA** (remote) or **Apple Silicon (`mps`)** GPUs.
+     - *Minimum filter*: Excludes inactive restaurants with $\le 30$ reviews.
+     - *Maximum limit*: Caps highly-reviewed restaurants to an upper bound of `500` reviews to balance the dataset footprint.
+   - **Hardware Acceleration**: Automatically detects and leverages Apple Silicon (`mps`) GPU if accessible, which greatly cuts down processing time alongside proper `batch_size` (e.g., 32/64).
 
-## Full Pipeline Orchestration
+## Merging Sharded Embeddings
 
-For a complete end-to-end run (Processing → Embedding → PCA → Clustering), use the provided unified script:
+Because `review_embeddings.npy` can exceed GitHub single-file limits, review embeddings may be uploaded as shard files such as:
+
+- `data/processed/review_embeddings.part00.npy`
+- `data/processed/review_embeddings.part01.npy`
+- `data/processed/review_embeddings.part02.npy`
+
+To merge them back into one file locally:
 
 ```bash
-./run_pipeline.sh
+python scripts/merge_embedding_shards.py --input-dir data/processed --prefix review_embeddings.part --output review_embeddings.npy
 ```
-This script is optimized for the **Lightning AI** remote environment and manages all environment variables and log redirection to `pipeline.log`.
 
-## Downloading Raw Embeddings
+After running, merged output will be created at:
 
-If you do not wish to generate the embeddings locally (which can take several hours), you can download the pre-computed raw embedding package:
-
-1. **Download the ZIP**: [NYC Restaurant Raw Embeddings](https://drive.google.com/file/d/1frL_0ib3iFE0BrlnChL4p-q0me90Pk4x/view?usp=share_link)
-2. **Setup**: Unzip the contents (`review_embeddings.npy` and `meta_embeddings.npy`) into the `data/processed/` directory.
-
-> [!IMPORTANT]
-> **Production Note**: These raw 768-dimensional embeddings are only required if you intend to re-run the PCA evaluation or high-precision similarity tests. The **final production search engine** and **interactive map** operate exclusively on the PCA-reduced artifacts tracked via Git LFS and **do not require** these 6GB raw files to function.
+- `data/processed/review_embeddings.npy`
 
 ## Semantic Search (Initial Test on Full Embeddings)
 
-With the embeddings generated (or downloaded), we first tested semantic search directly on the full 768-dimensional vectors. This step filters the review dataset and runs cosine similarity between a user query and every review embedding.
+With the embeddings generated, we first tested semantic search directly on the full 768-dimensional vectors. This step filters the review dataset and runs cosine similarity between a user query and every review embedding.
 
 1. **Filter Parquet Data**:
    ```bash
-   python src/1_data_processing.py
+   python src/2_filter_reivews.py
    ```
 2. **Run Search Query on Full Embeddings**:
    ```bash
@@ -138,7 +110,7 @@ While this produced correct results, operating on the full 768-d vectors across 
 
 ## PCA Dimensionality Reduction
 
-To address the high computational cost and memory demands of searching over full 768-dimensional embeddings, we apply **Incremental PCA** to reduce the vectors to 128 dimensions. This approach allows us to process the massive embedding matrices in chunks without loading the full 10GB+ dataset into RAM.
+To address the high computational cost and memory demands of searching over full 768-dimensional embeddings, we applied **PCA (Principal Component Analysis)** to reduce the embedding vectors to a much smaller dimension. This is a **required step** before running the final search pipeline.
 
 Run the PCA script after generating or merging the embeddings:
 
@@ -153,15 +125,17 @@ python src/4_pca.py
 | `N_COMPONENTS` | `128` | Target dimensionality after reduction |
 | `CHUNK_SIZE` | `100,000` | Rows transformed per batch (controls peak RAM) |
 
-**Output files** (saved to `results/pca/`):
+**Output files** (saved to `data/processed/`):
 
 | File | Description |
 |---|---|
 | `review_embeddings_pca.npy` | PCA-reduced review embeddings (N × 128) |
 | `meta_embeddings_pca.npy` | PCA-reduced metadata embeddings (M × 128) |
-| `pca_model.pkl` | Fitted `IncrementalPCA` model |
+| `pca_model.pkl` | Fitted `sklearn.decomposition.PCA` model |
 
-The fitted PCA model (`pca_model.pkl`) is saved so that **new queries can be projected into the same reduced space** at search time. The script prints the total explained variance retained after reduction to verify that the compressed representation still captures the essential semantic information.
+The fitted PCA model (`pca_model.pkl`) is saved so that **new queries can be projected into the same reduced space** at search time — no need to re-fit PCA when running the search.
+
+The script prints the total explained variance retained after reduction so you can verify that the compressed representation still captures the essential semantic information.
 
 ## PCA Component-Count Evaluation
 
@@ -180,63 +154,59 @@ python src/4a_pca_evaluation.py
 | 16 | 58.3% | 10% | 194× | 229 MB | 0.452 |
 | 32 | 66.1% | 22% | 160× | 457 MB | 0.515 |
 | 64 | 74.9% | 38% | 151× | 915 MB | 0.595 |
-| **128** | **75.5%** | **54%** | **99×** | **1.8 GB** | **0.657** |
+| **128** | **84.4%** | **54%** | **99×** | **1.8 GB** | **0.657** |
 | 256 | 93.5% | 48% | 50× | 3.7 GB | 0.555 |
 | 384 | 97.5% | 48% | 34× | 5.5 GB | 0.488 |
 | 512 | 99.2% | 50% | 20× | 7.3 GB | 0.433 |
 
-**Result:** `n_components = 128` achieves the best tradeoff — **75.5%** explained variance, the highest recall (**54%**), a **99× speedup** (0.6 s vs 60.6 s per query), and an **83% size reduction** (1.8 GB vs 10.9 GB). Notably, recall *peaks* at 128 and decreases for higher component counts, suggesting that moderate PCA regularization filters out noise in the embedding space.
+**Result:** `n_components = 128` achieves the best tradeoff — **84.4%** explained variance, the highest recall (**54%**), a **99× speedup** (0.6 s vs 60.6 s per query), and an **83% size reduction** (1.8 GB vs 10.9 GB). Notably, recall *peaks* at 128 and decreases for higher component counts, suggesting that moderate PCA regularization filters out noise in the embedding space.
 
-Detailed results and tradeoff plots are saved to `results/pca/evaluation/`:
+Detailed results and tradeoff plots are saved to `results/`:
 - `pca_evaluation_results.csv` / `.json` — full metrics table.
 - `pca_tradeoff_analysis.png` — four-panel chart (explained variance, accuracy vs. compression, latency, composite score).
 - `pca_scree_curve.png` — cumulative explained variance elbow curve.
 
-### Final Production Evaluation (Cleaned Dataset)
+## Semantic Search
 
-**Date**: 2026-04-20
-**Hardware**: NVIDIA Tesla T4 GPU (Lightning AI)
-**Framework**: RAPIDS cuML (GPU-Accelerated PCA)
+With embeddings and PCA in place, the semantic search module (`src/similarity.py`) provides four search functions:
 
-#### Cleaning & Filtering Parameters
-To ensure highest recommendation quality for NYC restaurants, the following filters were applied to the **final production dataset**:
-- **Language Filtering**: Removed CJK (Chinese/Japanese/Korean) characters from reviews for semantic consistency.
-- **Museum/Status Filtering**: Excluded "Permanently closed" establishments.
-- **Engagement Threshold**: Standardized on **min 15 reviews** per restaurant (Total: **19,532** restaurants).
+| Function | Description | Speed |
+|---|---|---|
+| `search()` | Full search across all 3.7M reviews, chunked to avoid RAM overflow | Slowest |
+| `search_within_clusters()` | Filters to relevant clusters first, then searches full 768-dim embeddings | ~10x faster |
+| `search_pca()` | Searches all reviews using PCA-reduced 128-dim embeddings | ~99x faster |
+| `search_pca_within_clusters()` | Cluster filtering + PCA-reduced search — recommended | Fastest |
 
-#### Performance Benchmarks (Full 2.15M Reviews)
-Evaluation performed using the T4 GPU on the full 2.15 million review set.
+All functions take a natural language query string and return a dataframe with:
+`name`, `avg_similarity`, `avg_rating`, `borough`, `latitude`, `longitude`, `gmap_id`
 
-| n_components | Explained Var | Recall@10 | Speedup | Size |
-|:---:|:---:|:---:|:---:|:---:|
-| 16 | 35.4% | 0% | 15.6x | 132 MB |
-| 32 | 47.2% | 6% | 8.4x | 263 MB |
-| 64 | 60.9% | 30% | 5.9x | 527 MB |
-| **128** | **75.8%** | **44%** | **3.2x** | **1.1 GB** |
-| **256** | **89.9%** | **56%** | **1.2x** | **2.1 GB** |
-| 384 | 96.2% | 66% | 0.7x | 3.2 GB |
-| 512 | 98.8% | 68% | 0.2x | 4.2 GB |
+### Required Files
+- `data/processed/review-NYC-restaurant-filtered.parquet` — filtered reviews (run `scripts/filter_reviews.py`)
+- `data/processed/review_embeddings_pca.npy` — PCA-reduced embeddings (run `src/4_pca.py`)
+- `data/processed/pca_model.pkl` — fitted PCA model (run `src/4_pca.py`)
+- `results/clustering/cluster_centroids.npy` — cluster centroids (run `src/clustering.py`)
+- `results/clustering/restaurant_clusters.csv` — cluster assignments (run `src/clustering.py`)
 
-**Analysis**:
-- **Semantic Coverage**: 128 components capture **75.8%** of the variance in the production database. 
-- **Efficiency**: GPU mapping of 2 million rows now takes only **20.6s**, enabling rapid iteration on the full Google Maps NYC dataset.
-- **Sweet Spot**: `n_components=256` provides the best recall-to-size tradeoff on the full data, while `128` remains the most efficient for low-latency production use.
+### Example Usage
+```python
+import pandas as pd
+import numpy as np
+from src.similarity import load_model, load_pca_model, search_pca_within_clusters
 
-## Semantic Search (PCA-Reduced)
+reviews = pd.read_parquet('data/processed/review-NYC-restaurant-filtered.parquet')
+meta = pd.read_parquet('data/processed/meta-NYC-restaurant.parquet')
+embeddings_pca = np.load('data/processed/review_embeddings_pca.npy', mmap_mode='r')
+pca = load_pca_model('data/processed/pca_model.pkl')
+centroids = np.load('results/clustering/cluster_centroids.npy')
+clusters = pd.read_csv('results/clustering/restaurant_clusters.csv')
 
-With PCA-reduced embeddings in place, run the final search pipeline:
-
-1. **Filter Parquet Data** (if not already done above):
-   ```bash
-   python src/1_data_processing.py
-   ```
-2. **Run Search Query on PCA Embeddings**:
-   ```bash
-   python src/5_search_test_pca.py
-   ```
-   Modify the query inside `5_search_test_pca.py` to try different searches. The script loads the saved PCA model, projects the query embedding into the reduced space, and then computes cosine similarity against the PCA-reduced review embeddings.
-
-Compared to the full-embedding search, the PCA-based search is significantly faster and uses a fraction of the memory, making it practical for iterative experimentation and real-time queries.
+model = load_model()
+results = search_pca_within_clusters(
+    'cozy italian restaurant for a date night',
+    model, pca, embeddings_pca, reviews, meta, centroids, clusters
+)
+print(results)
+```
 
 ## Clustering
 
@@ -282,118 +252,115 @@ We ran a full grid search across 4 schemes × 9 k values:
 
 ### Running Clustering
 ```bash
-python src/6_clustering.py
+python src/clustering.py
 ```
 
 ### Output Files
 
-All secondary clustering artifacts are saved to `results/clustering/evaluation/`:
+All clustering outputs are saved to `results/clustering/`:
 
 | File | Description |
 |---|---|
-| `cluster_summary.json` | Per-cluster summary: keywords and stats |
-| `clustering_scores.csv` | Silhouette scores for all experiments |
-| `silhouette_vs_k.png` | Performance tradeoff plots |
-| `cluster_size_dist.png` | Cluster distribution bar chart |
-| `wordclouds/` | Folder containing WordCloud PNGs for all 50 clusters |
-| `cluster_map.html` | Interactive Plotly map of all clusters |
+| `restaurant_clusters.csv` | Cluster label (0–49) for each restaurant, with name, borough, coordinates, avg_rating |
+| `cluster_summary.json` | Per-cluster summary: size, avg_rating, top_borough, top 10 TF-IDF keywords, sample restaurants |
+| `cluster_centroids.npy` | Shape (50, 768) — mean meta embedding vector per cluster, used by semantic search for fast cluster matching |
+| `clustering_scores.csv` | Silhouette scores for all 36 experiments |
+| `cluster_visualization.html` | Interactive 2D scatter plot (PCA), hover shows restaurant name, cluster, keywords, borough |
+| `silhouette_vs_k.png` | Silhouette score vs k curve for all schemes |
+| `best_cluster_distribution.png` | Cluster size distribution for the winning model |
 | `cluster_comparison_umap.png` | UMAP visualization comparing clustering schemes |
 
 ### How Clustering Enables Efficient Search
 
 At query time, the user's input is first matched to its nearest cluster centroid (using `cluster_centroids.npy`), then similarity search is conducted **only within that cluster** — reducing the search space by ~50× compared to full-corpus search.
 
-## Semantic Search (Cluster-Based)
+## Semantic Search (PCA-Reduced)
 
-With embeddings, PCA, and Clustering in place, the production search engine (`src/7_similarity.py`) provides an interactive interface for querying the entire NYC database.
+With PCA-reduced embeddings in place, run the final search pipeline:
 
-### Running the Search Engine
-You can launch the interactive search CLI to ask natural language queries (e.g., "secret italian spot in Soho"):
-```bash
-python src/7_similarity.py
-```
-The CLI will target relevant clusters first and then perform high-speed PCA-reduced search within them.
+1. **Filter Parquet Data** (if not already done above):
+   ```bash
+   python src/2_filter_reivews.py
+   ```
+2. **Run Search Query on PCA Embeddings**:
+   ```bash
+   python src/5_search_test_pca.py
+   ```
+   Modify the query inside `5_search_test_pca.py` to try different searches. The script loads the saved PCA model, projects the query embedding into the reduced space, and then computes cosine similarity against the PCA-reduced review embeddings.
 
-### Algorithm Performance
-The module provides four variants of the search algorithm:
-
-| Function | Description | Speed |
-|---|---|---|
-| `search()` | Full search across all 2.1M reviews, chunked to avoid RAM overflow | Slowest |
-| `search_within_clusters()` | Filters to relevant clusters first, then searches full 768-dim embeddings | ~10x faster |
-| `search_pca()` | Searches all reviews using PCA-reduced 128-dim embeddings | ~99x faster |
-| `search_pca_within_clusters()` | Cluster filtering + PCA-reduced search — recommended | Fastest |
-
-All functions return detailed restaurant cards including names, similarity match, ratings, borough, descriptions, and clickable Google Maps links.
-
-### Example Usage (Programmatic)
-```python
-import pandas as pd
-import numpy as np
-from src.7_similarity import load_model, load_pca_model, search_pca_within_clusters
-
-reviews = pd.read_parquet('data/processed/review-NYC-restaurant-filtered.parquet')
-meta = pd.read_parquet('data/processed/meta-NYC-restaurant.parquet')
-embeddings_pca = np.load('results/pca/review_embeddings_pca.npy', mmap_mode='r')
-pca = load_pca_model('results/pca/pca_model.pkl')
-centroids = np.load('results/clustering/cluster_centroids.npy')
-clusters = pd.read_csv('results/clustering/restaurant_clusters.csv')
-
-model = load_model()
-results, best_clusters = search_pca_within_clusters(
-    'cozy italian restaurant for a date night',
-    model, pca, embeddings_pca, reviews, meta, centroids, clusters
-)
-print(results)
-```
+Compared to the full-embedding search, the PCA-based search is significantly faster and uses a fraction of the memory, making it practical for iterative experimentation and real-time queries.
 
 ## Ranking & ABSA
 
-Layers 2–3 of the recommendation pipeline: aspect-based sentiment scoring (precomputed offline, stored directly in the meta parquet) and personalised re-ranking at query time.
+Layers 2–3 of the recommendation pipeline: aspect-based sentiment scoring and personalised re-ranking of the candidates returned by semantic search.
 
 ### Architecture
 
 ```
-Layer 1  src/7_similarity.py          → top-N candidates (cluster-aware PCA semantic search)
-Layer 2  src/8_ranking.py             → offline ABSA precompute (writes 4 columns into meta parquet)
-Layer 3  src/ranking.py               → query-time ranker:
-                                         final = α · rating/5
-                                               + β · aspect_weighted (price blended with $$ tier)
-                                               + γ · log1p(reviews) / global_max
-Layer 4  src/9_search_test_ranking.py → CLI that ties Layer 1 + 3 together for testing
+Layer 1  src/similarity.py          → top-100 candidate restaurants (semantic search)
+Layer 2  src/ranking/absa.py        → per-restaurant aspect scores (offline precompute)
+Layer 3  src/ranking/__init__.py    → final_score = α·avg_rating_norm
+                                                   + β·aspect_weighted_norm
+                                                   + γ·log(1+num_reviews)_norm
 ```
 
-Files (flat, under `src/`):
+All ranking code lives in the `src/ranking/` package:
 
-| File | Role |
+| File | Description |
 |---|---|
-| `src/absa.py` | Importable ABSA library: keyword tables, `get_aspect_prefs`, `precompute_all_aspect_scores`, validation helpers |
-| `src/similarity.py` | `importlib` wrapper around `src/7_similarity.py` so other code can `from src.similarity import ...` despite the digit-prefix filename |
-| `src/ranking.py` | Importable ranker: `rank_candidates`, `tier_to_score`, normalization helpers |
-| `src/8_ranking.py` | Standalone CLI — runs `precompute_all_aspect_scores` end-to-end and writes back into `data/processed/meta-NYC-restaurant.parquet` |
-| `src/9_search_test_ranking.py` | Interactive terminal CLI that runs the full search + rank pipeline |
-| `src/10_query_construction.py` | CLI that builds a query string from 4 toggle questions |
+| `src/ranking/__init__.py` | `rank_candidates`, `add_price_tier_score`, `sensitivity_analysis` |
+| `src/ranking/absa.py` | ABSA precompute, `get_aspect_prefs`, validation helpers |
+| `src/ranking/demo_search.py` | Standalone Streamlit search demo |
+| `src/ranking/scripts/` | Numbered run scripts (see pipeline below) |
+
+`src/absa.py` is a backward-compatibility shim that re-exports from `src/ranking/absa.py`.
+
+---
 
 ### ABSA Score Semantics
 
-Aspect scores are produced by **VADER compound sentiment** on keyword-matched review clauses, then **Bayesian-smoothed** using global priors, and finally **globally min-max normalized to [0, 1]** across the ~19.5k restaurants that pass the ≥15-review filter. The globally-normalized scores are written into the meta parquet as four new columns: `aspect_food`, `aspect_service`, `aspect_price`, `aspect_wait_time`.
-
-Global (not per-candidate) normalization is used so the stored scores are stable per restaurant, comparable across queries, and interpretable as absolute positions within the dataset.
+Aspect scores are produced by **VADER compound sentiment** on keyword-matched review clauses, then **Bayesian-smoothed** using global priors, and finally **percentile-normalized to [0, 1]** at indexing time against the full database.
 
 **Score direction:**
-- `aspect_price` high → **cheap / good value**
-- `aspect_wait_time` high → **short wait**
-- `aspect_food`, `aspect_service` high → positive sentiment
+- `price` high score → **cheap / good value** (not expensive)
+- `wait_time` high score → **short wait** (not crowded/slow)
+- `food`, `service` high score → positive sentiment
 
-High score always means "user-desirable" — no sign flips needed.
+This means high scores always = user-desirable, so no sign-flip is needed after applying user weights.
 
-Restaurants with fewer than 15 reviews (not present in the review-filtered parquet) get `NaN` in all four columns.
+**Display format (UI only, does not affect ranking):**
+
+`price` and `wait_time` are additionally stored as **percentile ranks** (`aspect_price_pct`, `aspect_wait_time_pct`) computed once at indexing time. These are shown in the app as:
+- Price: `$$ · more satisfying than 73% of restaurants`
+- Wait Time: `better than 81% of restaurants`
+
+This gives users an intuitive relative comparison without exposing raw scores.
+
+---
+
+### Aspect Keywords
+
+Four aspects tracked (`ASPECT_KEYWORDS` in `src/absa.py`):
+
+| Aspect | Example keywords |
+|---|---|
+| `food` | pizza, ramen, sushi, burger, taste, flavor, portion, … (42 keywords) |
+| `service` | service, staff, waiter, friendly, attentive, rude, helpful, … |
+| `price` | cheap, expensive, affordable, value, overpriced, reasonable, … |
+| `wait_time` | wait, line, queue, slow, quick, fast, crowded, minutes, … |
+
+`ambience` was removed after human validation showed only 28.6% recall — keyword coverage in review text was insufficient.
+
+Keywords were validated via word-frequency analysis on the full review corpus (Step 0).
+
+---
 
 ### Query Intent Parsing
 
 `get_aspect_prefs(query)` infers aspect importance from a natural-language query.
 
-- **Mention = important**: any keyword hit adds `+0.20` to that aspect's weight. Negation is intentionally ignored — "no long wait" and "fast service" both mean the user cares about wait time.
+**Design decisions:**
+- **Mention = important**: any keyword hit adds `+POSITIVE_BOOST (0.20)` to that aspect's weight. Negation is intentionally ignored — "no long wait" and "fast service" both mean the user cares about wait time. The ABSA scores already encode direction (high wait_time = short wait), so there is no need to detect whether the user wants more or less of each aspect.
 - **Default weights** (used when no keywords detected):
 
 | Aspect | Default weight |
@@ -403,28 +370,43 @@ Restaurants with fewer than 15 reviews (not present in the review-filtered parqu
 | `price` | 0.20 |
 | `wait_time` | 0.10 |
 
-The returned weights are auto-normalized to sum to 1 before being applied.
+---
 
-### Query-Time Ranking Formula
+### Per-Aspect Normalization
 
-At query time, `src/ranking.py:rank_candidates` computes:
+Each aspect score is **independently normalized at indexing time** (once, against the full ~19,500-restaurant database) using **percentile-based normalization**: values are first clipped to the [1st, 99th] percentile range to eliminate outliers, then min-max scaled to [0, 1]. The normalized scores are stored directly in the meta parquet, so rankings remain stable and reproducible across queries.
+
+This design ensures that user weights in `aspect_weighted = Σ user_pref[aspect] × score[aspect]` reflect true relative importance. Without normalization, aspects with systematically different baseline means — for example, `wait_time` skews low due to negativity bias in reviews, while `price` skews high after Google Maps tier blending — would cause the same weight to have unequal effect across aspects.
+
+---
+
+### Google Maps Price Tier Fusion
+
+In addition to ABSA price sentiment, we fuse the Google Maps price tier (`$`/`$$`/`$$$`/`$$$$`) into the `price` dimension:
+
+| Tier | Score |
+|---|---|
+| `$` | 1.0 |
+| `$$` | 0.75 |
+| `$$$` | 0.25 |
+| `$$$$` | 0.0 |
+| missing | 0.5 (neutral) |
+
+The final price score is: `0.5 × absa_price_normalized + 0.5 × tier_score`
+
+This ensures that cheap restaurants get a price bonus even when reviewers don't explicitly mention cost — common for budget restaurants where customers already expect low prices and don't comment on them.
+
+---
+
+### Ranking Formula
 
 ```
-aspect_weighted = w_food · aspect_food
-                + w_service · aspect_service
-                + w_price · (0.5 · aspect_price + 0.5 · tier_score)
-                + w_wait_time · aspect_wait_time
-
-final_score = α · (avg_rating / 5)
-            + β · aspect_weighted
-            + γ · (log1p(num_reviews) / global_max_log1p_reviews)
+final_score = α × avg_rating_norm
+            + β × aspect_weighted_norm
+            + γ × log(1 + num_reviews)_norm
 ```
 
-- User weights `w_*` are auto-normalized to sum to 1.
-- `tier_score` maps Google Maps `$`/`$$`/`$$$`/`$$$$` → `1.0`/`0.75`/`0.25`/`0.0` (missing → `0.5`). Only the `price` aspect is blended with the tier, and the blend happens at query-time so the raw ABSA price score stays inspectable in the parquet.
-- `global_max_log1p_reviews` is cached at startup for cross-query comparability.
-
-**Baseline α/β/γ** (auto-normalized if the caller changes them):
+**Baseline weights** (selected via sensitivity analysis):
 
 | Parameter | Value | Role |
 |---|---|---|
@@ -432,96 +414,213 @@ final_score = α · (avg_rating / 5)
 | β | 0.5 | Aspect-weighted ABSA score |
 | γ | 0.1 | Review count (popularity) |
 
-### Running the Precompute
+All three components are independently min-max normalized within the candidate set before combining. The `demo_search.py` UI auto-normalizes α/β/γ if the user adjusts them, so they don't need to sum to 1 manually.
 
-From project root, inside the venv:
+---
 
-```bash
-python src/8_ranking.py
+### Four-Batch Execution Pipeline
+
+The ranking system was built and validated in four human-gated batches:
+
+```
+Batch 1 ──────────────────────────────────────────────────────────
+  ①  Build all functions (Steps 0–5 code in src/ranking/)
+  ②  Run frequency_analysis() → inspect word counts
+      ↓
+      [Human] Review frequency output → decide ASPECT_KEYWORDS updates
+
+Batch 2 ──────────────────────────────────────────────────────────
+  ③  Run precompute_all_aspect_scores() with updated keywords
+      → data/processed/aspect_scores.parquet  (~1–2 h, 21,296 restaurants)
+  ④  Sample 100 sentences → data/validation/sample_sentences.csv
+      ↓
+      [Human] Manually label 'aspects' column (before viewing system output
+               to avoid confirmation bias)
+
+Batch 3 ──────────────────────────────────────────────────────────
+  ⑤  validate_absa_accuracy() + validate_query_detection()
+  ⑥  sensitivity_analysis() → α/β/γ comparison table
+      → results/sensitivity_analysis.csv
+      ↓
+      [Human] Choose α/β/γ combination
+
+Batch 4 ──────────────────────────────────────────────────────────
+  ⑦  Run demo with selected weights → top-5 per query
+      → results/sensitivity_latest_blind.csv  (weight_set hidden)
+      ↓
+      [Human] Score results 0/1/2 (relevance to query + aspect match)
+  ⑧  Compute per-weight-set average → final report
 ```
 
-This takes ~5 minutes on a laptop and writes four new columns directly into `data/processed/meta-NYC-restaurant.parquet`. Re-running the script is safe — stale aspect columns are dropped and re-computed.
-
-Phase 1 estimates global priors from a 10% sample of restaurants (no smoothing). Phase 2 computes Bayesian-smoothed scores for every restaurant with ≥15 reviews. `groupby` is used to iterate reviews by restaurant in O(n) time.
-
-### Running the CLI Search+Rank Test
+Run scripts in order from the project root:
 
 ```bash
-python src/9_search_test_ranking.py
+python src/ranking/scripts/step0_frequency_analysis.py
+python src/ranking/scripts/step1_precompute.py
+python src/ranking/scripts/step2_validation.py
+python src/ranking/scripts/step3_sensitivity_demo.py
 ```
 
-Interactive REPL — type a query, see top 10 with each score component, auto-detected aspect preferences, and timing breakdown.
+---
 
-### Output
+### Interactive Search Demo
 
-Four new columns appended to `data/processed/meta-NYC-restaurant.parquet`:
+```bash
+streamlit run src/ranking/demo_search.py
+```
 
-| Column | Range | Description |
-|---|---|---|
-| `aspect_food` | [0, 1] | Globally-normalized Bayesian-smoothed food sentiment |
-| `aspect_service` | [0, 1] | Same, for service |
-| `aspect_price` | [0, 1] | Raw (unblended) price sentiment — blending happens at query-time |
-| `aspect_wait_time` | [0, 1] | Same, for wait time |
+Features:
+- Natural-language query → semantic search → top-100 candidates
+- Auto-detected aspect preferences displayed as adjustable sliders (food / service / price / wait time)
+- α / β / γ ranking weight expander (auto-normalized)
+- Results shown on map + sortable table with price tier (`$`/`$$`) column
+- Every new search resets all sliders to auto-detected values
 
-## Web App
+---
 
-A FastAPI backend + Vite / React SPA sit on top of the pipeline and expose
-everything as an interactive map-based search — natural-language queries,
-filter-by-borough / radius / drawn polygon / viewport, day & time filter,
-aspect-based sort, inline detail panel, and a browse-all clustered map view
-of the entire qualifying NYC restaurant set.
+### Output Files
 
-The backend imports the stable library code from `src/` (`src.absa`,
-`src.similarity`, `src.ranking`) but otherwise owns its own routes,
-Pydantic schemas, state singleton, and geographic / time filtering. Artifacts
-are loaded once at startup and shared across requests. The old
-`src/app.py` Streamlit prototype has been superseded.
+| File | Description |
+|---|---|
+| `data/processed/aspect_scores.parquet` | Per-restaurant ABSA scores (Batch 2 output) |
+| `data/validation/sample_sentences.csv` | 100 sentences for manual annotation |
+| `data/validation/sample_sentences_labeled.csv` | Human-labeled annotation file |
+| `results/sensitivity_analysis.csv` | α/β/γ grid search results |
+| `results/sensitivity_latest.csv` | Per-query top-5 with weight_set labels |
+| `results/sensitivity_latest_blind.csv` | Blind version for human scoring |
 
-👉 **See [`app/README.md`](app/README.md) for the full app guide** —
-architecture diagram, module-by-module backend breakdown (main, state,
-schemas, search, detail, browse, geo, hours, query_builder), frontend
-structure (views + components + hooks + api), API spec, design system,
-environment setup (Mapbox token), and run / smoke-test commands.
+## 🍕 NYC Restaurant Explorer: Interactive Map（Frame, more functions coming...）
+1. Features
+- **Interactive Map** — Restaurants are plotted on a Mapbox map using latitude/longitude coordinates, color-coded by cluster category using a discrete color palette.
+- **Cluster Filter** — A sidebar multiselect control lets users choose which restaurant clusters to display. Clusters are sorted numerically, and the first 5 are shown by default to reduce initial load time.
+- **Rating Filter** — A sidebar slider lets users set a minimum average rating (1.0–5.0, default 3.5), filtering out lower-rated restaurants.
+- **Restaurant Count** — The sidebar dynamically shows the total number of restaurants matching the current filters.
+- **Two-Column Layout** — The main view is split into a map panel (left, 2/3 width) and a sortable restaurant details list (right, 1/3 width), displaying name, borough, average rating, and cluster.
+- **Hover Details** — Hovering over a map point shows the restaurant name, cluster ID, average rating, and borough.
+- **Smart Recommendation Placeholder** — A section at the bottom of the page previews a planned similarity-based recommendation feature using embedding vectors.
 
+2.  Requirements
+
+- Python 3.8+
+- [Streamlit](https://streamlit.io/)
+- [Pandas](https://pandas.pydata.org/)
+- [Plotly](https://plotly.com/python/)
+
+Install dependencies with:
+
+```bash
+pip install streamlit pandas plotly
+```
+
+---
+
+3. Data Requirements
+
+The app expects a CSV file at the following path:
+
+```
+results/clustering/restaurant_clusters.csv
+```
+
+The CSV must contain at least these columns:
+
+| Column | Description |
+|---|---|
+| `latitude` | Restaurant latitude coordinate |
+| `longitude` | Restaurant longitude coordinate |
+| `cluster` | Integer cluster ID assigned by the clustering model |
+| `name` | Restaurant name |
+| `avg_rating` | Average user rating (1.0–5.0) |
+| `borough` | NYC borough (e.g., Manhattan, Brooklyn) |
+
+Rows with missing `latitude` or `longitude` values are automatically dropped on load.
+
+---
+
+4.  How to Open
+
+From the project root directory, run:
+
+```bash
+streamlit run src/app.py
+```
+The app will open in your browser at `http://localhost:8501` by default.
+
+5. API Notes
+
+The following Plotly/Streamlit deprecations have been resolved in `src/app.py`:
+
+- `px.scatter_mapbox` → `px.scatter_map` (Plotly MapLibre migration)
+- `mapbox_style` → `map_style` in `fig.update_layout()`
+- `use_container_width=True` → `width='stretch'` (Streamlit, removed after 2025-12-31)
+
+6. Planned Features
+- **Similarity-Based Recommendations** — Input a restaurant you like and find the most similar ones using embedding vector search.
 ## Repo Structure
 
 ```
 ml-restaurant-recommendation/
 ├── README.md
 ├── requirements.txt
-├── CLAUDE.md                        # AI assistant instructions for this project
+├── CLAUDE.md                  # AI assistant instructions for this project
+├── scripts/                   # Non-ranking utility scripts
+│   ├── merge_embedding_shards.py      # Merge review embedding shards into one .npy
+│   └── filter_reviews_match_embedding.py  # Align review parquet with embedding index
 ├── documents/
 │   ├── writtenProposal.md
 │   ├── designDocument.md
 │   ├── dataDocumentation.md
 │   ├── brainstorming.md
-│   └── ranking_plan_final.md
-├── data/                            # Large data artifacts (partially LFS tracked)
-│   ├── raw/                         # Raw Google Local Reviews JSON (Excluded)
-│   └── processed/                   # Cleaned datasets and precomputed artifacts
-│       ├── review-NYC-...-filtered.parquet
-│       └── meta-NYC-restaurant.parquet   # Now includes 4 aspect_* columns
+│   └── ranking_plan_final.md  # Detailed ranking pipeline design document
+├── data/                      # Not tracked in git
+│   ├── raw/                   # Raw Google Local Reviews JSON files
+│   ├── processed/             # Cleaned data and precomputed artifacts
+│   │   ├── review-NYC-restaurant-filtered.parquet
+│   │   ├── meta-NYC-restaurant.parquet
+│   │   ├── review_embeddings_pca.npy      # PCA-reduced review embeddings (N × 128)
+│   │   ├── pca_model.pkl                  # Fitted PCA model
+│   │   ├── aspect_scores.parquet          # ABSA aspect scores per restaurant
+│   │   ├── word_frequency_top500.csv      # Top-500 word frequencies (Step 0 output)
+│   │   └── aspect_keyword_frequency.csv   # Per-keyword frequency check
+│   └── validation/
+│       ├── sample_sentences.csv           # 100 sentences for manual annotation
+│       └── sample_sentences_labeled.csv   # Human-labeled aspects
 ├── notebooks/
-├── results/
-│   ├── pca/                         # Production PCA embeddings & models (LFS)
-│   └── clustering/                  # Production cluster assignments + summary json
-├── src/                             # ML pipeline (CLI scripts + importable libs)
-│   ├── 1_data_processing.py         # CLI: data loading, cleaning, filtering
-│   ├── 2_embedding.py               # CLI: sentence embedding generation
-│   ├── 4_pca.py                     # CLI: PCA reduction (768 → 128)
-│   ├── 4a_pca_evaluation.py         # CLI: PCA component-count evaluation
-│   ├── 6c_clustering_evaluation.py  # CLI: consolidated evaluation & viz
-│   ├── 7_similarity.py              # CLI: production search engine
-│   ├── 8_ranking.py                 # CLI: offline ABSA precompute → meta parquet
-│   ├── 9_search_test_ranking.py     # CLI: interactive search + rank REPL
-│   ├── 10_query_construction.py     # CLI: 4-toggle query builder
-│   ├── absa.py                      # Importable lib: ABSA core + get_aspect_prefs
-│   ├── similarity.py                # Importable lib: importlib wrapper for 7_similarity
-│   └── ranking.py                   # Importable lib: query-time ranking formula
-├── app/                             # Web app — see app/README.md for details
-│   ├── README.md                    # Backend + frontend architecture guide
-│   ├── backend/                     # FastAPI service (routes, state, search, detail, …)
-│   ├── frontend/                    # Vite + React SPA (views, components, hooks, …)
-│   └── design sample/               # Early static design mocks
-└── .gitattributes                   # Git LFS configuration
+│   ├── exploration.ipynb
+│   └── clustering_analysis.ipynb
+├── src/
+│   ├── 0_data_processing.py   # Data loading, cleaning, borough assignment
+│   ├── 1_embedding.py         # Sentence embedding generation (nomic-embed-text-v1.5)
+│   ├── 2_filter_reivews.py    # Filter & align review parquet with embedding index
+│   ├── 3_search_test_embedding.py  # Semantic search on full 768-d embeddings (baseline)
+│   ├── 4_pca.py               # PCA dimensionality reduction (768 → 128)
+│   ├── 4a_pca_evaluation.py   # PCA component-count evaluation (recall@10, speedup)
+│   ├── 5_search_test_pca.py   # Semantic search on PCA-reduced embeddings
+│   ├── clustering.py          # K-Means / GMM clustering on combined features
+│   ├── similarity.py          # Cosine similarity, cluster-aware search, PCA search
+│   ├── absa.py                # Shim → re-exports from src/ranking/absa.py
+│   ├── evaluation.py          # Model evaluation metrics
+│   ├── user_profile.py        # User profile management
+│   ├── app.py                 # Interactive map explorer (streamlit run src/app.py)
+│   └── ranking/               # Ranking & ABSA package
+│       ├── __init__.py        # rank_candidates, add_price_tier_score, sensitivity_analysis
+│       ├── absa.py            # ABSA precompute, get_aspect_prefs, validation
+│       ├── demo_search.py     # Interactive search + ranking demo (streamlit run)
+│       └── scripts/           # Run in order from project root
+│           ├── step0_frequency_analysis.py  # Validate ASPECT_KEYWORDS vs corpus
+│           ├── step1_precompute.py          # Precompute aspect scores (~1–2 h)
+│           ├── step2_validation.py          # ABSA accuracy + sensitivity analysis
+│           └── step3_sensitivity_demo.py    # Compare α/β/γ weight sets
+└── results/
+    ├── clustering/
+    │   ├── restaurant_clusters.csv        # Cluster label (0–49) per restaurant
+    │   ├── cluster_summary.json           # Per-cluster keywords and stats
+    │   ├── cluster_centroids.npy          # Mean meta embedding per cluster (50, 768)
+    │   ├── clustering_scores.csv          # Silhouette scores for all 36 experiments
+    │   ├── cluster_visualization.html     # Interactive 2D UMAP scatter plot
+    │   └── …
+    ├── sensitivity_analysis.csv           # α/β/γ grid search results
+    ├── sensitivity_latest.csv             # Per-query top-5 with weight labels
+    ├── sensitivity_latest_blind.csv       # Blind version for human scoring
+    └── review_analysis_report.csv
 ```
