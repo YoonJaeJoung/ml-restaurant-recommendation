@@ -376,9 +376,9 @@ Files (flat, under `src/`):
 
 ### ABSA Score Semantics
 
-Aspect scores are produced by **VADER compound sentiment** on keyword-matched review clauses, then **Bayesian-smoothed** using global priors, and finally **globally min-max normalized to [0, 1]** across the ~19.5k restaurants that pass the ≥15-review filter. The globally-normalized scores are written into the meta parquet as four new columns: `aspect_food`, `aspect_service`, `aspect_price`, `aspect_wait_time`.
+Aspect scores are produced by **VADER compound sentiment** on keyword-matched review clauses, then **Bayesian-smoothed** using global priors, and finally **percentile-normalized to [0, 1]** at indexing time against the full database. Specifically, each aspect is clipped to its [1st, 99th] percentile range before min-max scaling — this eliminates outlier distortion while preserving ordinal relationships. The normalized scores are written into the meta parquet as four columns: `aspect_food`, `aspect_service`, `aspect_price`, `aspect_wait_time`.
 
-Global (not per-candidate) normalization is used so the stored scores are stable per restaurant, comparable across queries, and interpretable as absolute positions within the dataset.
+Indexing-time (not per-candidate) normalization ensures scores are stable per restaurant, comparable across queries, and that user aspect weights have equal effect regardless of each aspect's raw baseline mean (e.g., `wait_time` skews low due to negativity bias in reviews — without normalization, a high `wait_time` weight would have less effect than the same weight on `price`).
 
 **Score direction:**
 - `aspect_price` high → **cheap / good value**
@@ -388,6 +388,12 @@ Global (not per-candidate) normalization is used so the stored scores are stable
 High score always means "user-desirable" — no sign flips needed.
 
 Restaurants with fewer than 15 reviews (not present in the review-filtered parquet) get `NaN` in all four columns.
+
+**Display format (UI only, does not affect ranking):**
+
+`price` and `wait_time` are additionally stored as **percentile ranks** (`aspect_price_pct`, `aspect_wait_time_pct`, 0–100 integers) computed once at indexing time. These are shown in the app as:
+- Price: `$$ · more satisfying than 73% of restaurants`
+- Wait Time: `better than 81% of restaurants`
 
 ### Query Intent Parsing
 
@@ -458,10 +464,12 @@ Four new columns appended to `data/processed/meta-NYC-restaurant.parquet`:
 
 | Column | Range | Description |
 |---|---|---|
-| `aspect_food` | [0, 1] | Globally-normalized Bayesian-smoothed food sentiment |
+| `aspect_food` | [0, 1] | Percentile-normalized Bayesian-smoothed food sentiment |
 | `aspect_service` | [0, 1] | Same, for service |
-| `aspect_price` | [0, 1] | Raw (unblended) price sentiment — blending happens at query-time |
+| `aspect_price` | [0, 1] | Raw (unblended) price sentiment — blending with Google Maps tier happens at query-time |
 | `aspect_wait_time` | [0, 1] | Same, for wait time |
+| `aspect_price_pct` | [0, 100] | Percentile rank of price score — display only ("more satisfying than X% of restaurants") |
+| `aspect_wait_time_pct` | [0, 100] | Percentile rank of wait_time score — display only ("better than X% of restaurants") |
 
 ## Web App
 
