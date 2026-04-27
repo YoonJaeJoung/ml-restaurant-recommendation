@@ -57,7 +57,7 @@ export default function Home({ searchState, setSearchState, onSearch, onBrowseAl
   }
   const cancelInspire = () => {
     setInspireOpen(false)
-    setSearchState(s => ({ ...s, query: preInspireQuery, toggles: { occasion: null, vibe: null, cuisine: null, priority: null } }))
+    setSearchState(s => ({ ...s, query: preInspireQuery, toggles: { occasion: null, vibe: null, cuisine: null, priority: [] } }))
   }
   const inspireSearch = (toggles) => {
     setInspireOpen(false)

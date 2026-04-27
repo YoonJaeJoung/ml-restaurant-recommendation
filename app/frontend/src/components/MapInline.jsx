@@ -97,12 +97,20 @@ export default function MapInline({
           <button className="btn primary sm outline" onClick={startRectangle}>
             <IconRectangle size={14} /> Draw Rectangle
           </button>
+          <button className="btn primary sm outline" onClick={requestCurrentLocation} disabled={locating}>
+            <IconLocate size={14} />
+            {locating ? 'Locating…' : 'Current Location'}
+          </button>
         </div>
       )}
       {mode === 'area' && hasShape && (
         <div className="map-inline-overlay">
           <button className="btn primary sm" onClick={clearSelection}>
             <IconClose size={14} /> Clear Selection
+          </button>
+          <button className="btn primary sm outline" onClick={requestCurrentLocation} disabled={locating}>
+            <IconLocate size={14} />
+            {locating ? 'Locating…' : 'Current Location'}
           </button>
         </div>
       )}

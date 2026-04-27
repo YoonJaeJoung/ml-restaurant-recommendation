@@ -1,4 +1,24 @@
+# Web framework
 fastapi
 uvicorn[standard]
 pydantic
+
+# Geometry (used by app/backend/geo.py for the draw-polygon filter)
 shapely
+
+# Data / numerics (imported transitively via src/)
+numpy
+pandas
+pyarrow
+
+# ML stack (src/7_similarity.py)
+scikit-learn
+sentence-transformers
+einops  # transitive dep of nomic-ai/nomic-embed-text-v1.5's custom modeling code
+
+# ABSA (src/absa.py)
+nltk
+vaderSentiment
+
+# Artifact download from HF Dataset (deploy/hf-space/entrypoint.sh)
+huggingface_hub

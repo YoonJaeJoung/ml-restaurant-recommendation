@@ -1,8 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client.js'
 import {
-  IconTarget, IconUtensils, IconService, IconClock, IconDollar,
+  IconTarget, IconUtensils, IconClock, IconDollar, MS,
 } from '../components/Icons.jsx'
+
+// Map a 1-5 rounded score to a Material Symbols sentiment glyph name.
+const SENTIMENT_BY_ROUND = {
+  1: 'sentiment_extremely_dissatisfied',
+  2: 'sentiment_frustrated',
+  3: 'sentiment_neutral',
+  4: 'sentiment_satisfied',
+  5: 'sentiment_very_satisfied',
+}
+function sentimentName(scoreFive) {
+  if (scoreFive == null) return null
+  const r = Math.max(1, Math.min(5, Math.round(scoreFive)))
+  return SENTIMENT_BY_ROUND[r]
+}
 
 const WEEKDAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -120,15 +134,17 @@ export default function Detail({ gmapId, lastSearchScore, onBack, variant = 'pag
 
   const aspects = detail.aspects || {}
 
-  // Overall match shown as a %; individual aspects shown as 0-10.
+  // Overall match: percentage. Individual aspects: out of 5 with sentiment glyph.
   const overallPct = lastSearchScore?.final_score != null ? (lastSearchScore.final_score * 100) : null
-  const toTen = (v) => (v == null ? null : v * 10)
+  const toFive = (v) => (v == null ? null : v * 5)
 
+  // Price uses RAW `aspect_price` (not blended). The 50/50 blend is only used
+  // by the overall ranker; surfaced values stay interpretable as pure ABSA.
   const aspectCells = [
-    { label: 'Food',      Icon: IconUtensils, v: toTen(aspects.food)           },
-    { label: 'Service',   Icon: IconService,  v: toTen(aspects.service)        },
-    { label: 'Price',     Icon: IconDollar,   v: toTen(aspects.price_blended)  },
-    { label: 'Wait time', Icon: IconClock,    v: toTen(aspects.wait_time)      },
+    { label: 'Food',      Icon: IconUtensils,                        v: toFive(aspects.food)      },
+    { label: 'Service',   MSName: 'concierge',                       v: toFive(aspects.service)   },
+    { label: 'Price',     Icon: IconDollar,                          v: toFive(aspects.price)     },
+    { label: 'Wait time', Icon: IconClock,                           v: toFive(aspects.wait_time) },
   ]
 
   return (
@@ -143,18 +159,20 @@ export default function Detail({ gmapId, lastSearchScore, onBack, variant = 'pag
           <div className="detail-header-meta">
             {detail.borough && <span className="rating-star">{detail.borough}</span>}
             {detail.address && <><span className="bullet">·</span><span>{detail.address}</span></>}
-            {detail.avg_rating != null && (
-              <><span className="bullet">·</span><span>★ {detail.avg_rating.toFixed(1)}</span></>
-            )}
-            {detail.price && <><span className="bullet">·</span><span className="mono-meta" style={{ fontSize: 13 }}>{detail.price}</span></>}
           </div>
+          {(detail.avg_rating != null || detail.price) && (
+            <div className="detail-header-meta secondary">
+              {detail.avg_rating != null && <span>★ {detail.avg_rating.toFixed(1)}</span>}
+              {detail.price && <span className="mono-meta" style={{ fontSize: 13 }}>{detail.price}</span>}
+            </div>
+          )}
           {detail.url && (
             <div style={{ marginTop: 12 }}>
               <a className="link" href={detail.url} target="_blank" rel="noreferrer">View on Google Maps →</a>
             </div>
           )}
           <div className="loc-mode-tabs detail-tabs" style={{ marginTop: 16 }}>
-            <button className={tab === 'score'   ? 'active' : ''} onClick={() => setTab('score')}>Score</button>
+            <button className={tab === 'score'   ? 'active' : ''} onClick={() => setTab('score')}>Satisfaction Score</button>
             <button className={tab === 'detail'  ? 'active' : ''} onClick={() => setTab('detail')}>Detail</button>
             <button className={tab === 'reviews' ? 'active' : ''} onClick={() => setTab('reviews')}>Reviews</button>
           </div>
@@ -178,18 +196,22 @@ export default function Detail({ gmapId, lastSearchScore, onBack, variant = 'pag
               </div>
             )}
             <div className="scores-grid aspects">
-              {aspectCells.map(({ label, Icon, v }) => (
-                <div key={label} className="score-cell">
-                  <div className="score-cell-head">
-                    <Icon size={14} />
-                    <span className="mono-label">{label}</span>
+              {aspectCells.map(({ label, Icon, MSName, v }) => {
+                const sentiment = sentimentName(v)
+                return (
+                  <div key={label} className="score-cell">
+                    <div className="score-cell-head">
+                      {sentiment && <MS name={sentiment} size={20} className="sentiment-glyph" />}
+                      {Icon ? <Icon size={14} /> : <MS name={MSName} size={16} />}
+                      <span className="mono-label">{label}</span>
+                    </div>
+                    <div className="value">
+                      {v == null ? '—' : <>{v.toFixed(1)}<span className="out-of">/5</span></>}
+                    </div>
+                    <div className="bar" style={{ width: `${Math.max(0, Math.min(5, v || 0)) * 20}%` }} />
                   </div>
-                  <div className="value">
-                    {v == null ? '—' : <>{v.toFixed(1)}<span className="out-of">/10</span></>}
-                  </div>
-                  <div className="bar" style={{ width: `${Math.max(0, Math.min(10, v || 0)) * 10}%` }} />
-                </div>
-              ))}
+                )
+              })}
             </div>
           </>
         )}

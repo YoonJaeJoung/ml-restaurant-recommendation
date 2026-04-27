@@ -9,6 +9,7 @@ Or directly:
 """
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query
@@ -39,10 +40,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS: in production set ALLOWED_ORIGIN_REGEX to a regex covering the deployed
+# frontend origin(s), e.g. r"https://.*\.vercel\.app". When unset we stay
+# localhost-only so local dev behaves identically to before.
+_DEFAULT_CORS_REGEX = r"http://(localhost|127\.0\.0\.1)(:\d+)?"
 app.add_middleware(
     CORSMiddleware,
-    # Vite dev server, same origin, CRA-ish — allow any localhost port during dev.
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_origin_regex=os.environ.get("ALLOWED_ORIGIN_REGEX", _DEFAULT_CORS_REGEX),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

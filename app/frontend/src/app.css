@@ -593,24 +593,63 @@
 .sidebar-body { flex: 1; overflow-y: auto; }
 
 .results-meta {
-  padding: 10px 14px 8px;
+  padding: 6px 14px 8px;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
+.results-headline {
+  padding: 12px 14px 4px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.results-headline-main strong { font-weight: 700; }
+.results-headline-sub {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-style: italic;
+}
 .sort-section {
-  padding: 2px 12px 12px;
+  padding: 6px 12px 12px;
+  border-top: 1px solid var(--divider);
 }
 .sort-label {
   display: block;
-  margin-bottom: 8px;
+  margin: 6px 0 8px;
   font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0.2px;
+  color: var(--muted-strong);
+  font-family: var(--font);
+  font-weight: 500;
 }
 .sort-row {
   display: flex;
   gap: 5px;
 }
 .sort-row + .sort-row { margin-top: 5px; }
+.revert-btn {
+  margin-top: 8px;
+  padding: 6px 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--muted-strong);
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: all var(--dur) var(--ease);
+  cursor: pointer;
+}
+.revert-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 .sort-btn {
   flex: 1 1 auto;
   min-width: 0;
@@ -636,6 +675,40 @@
   font-weight: 700;
 }
 .filtered-count { cursor: help; }
+
+/* Small inline `?` button next to a filter label (used by dietary). */
+.info-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+  padding: 0;
+}
+.info-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.dietary-help {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--accent-bg);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  font-style: italic;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+}
 
 .result-list { padding-left: 0; }
 
@@ -786,6 +859,14 @@
   color: var(--text);
 }
 .detail-root .detail-name { font-size: 44px; letter-spacing: -1.2px; }
+.detail-header-meta.secondary {
+  margin-top: 8px;
+  gap: 16px;
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 500;
+}
+.detail-header-meta.secondary .mono-meta { color: var(--text); font-weight: 600; }
 .detail-header-meta {
   display: flex;
   gap: 10px;
@@ -848,6 +929,16 @@
   color: var(--muted-strong);
 }
 .score-cell-head .mono-label { color: inherit; }
+.score-cell-head .sentiment-glyph {
+  color: var(--accent);
+  margin-right: 2px;
+}
+.material-symbols-outlined {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
 .score-cell .value {
   font-size: 26px;
   font-weight: 700;
@@ -1085,22 +1176,18 @@
     top: 56px; width: calc(100vw - 24px);
   }
 
-  /* Sidebar bottom sheet */
+  /* Sidebar bottom sheet — floating overlay (margins on left/right/bottom) */
   .sidebar {
-    top: auto; left: 0; right: 0; bottom: 0;
-    width: 100%;
+    top: auto; left: 12px; right: 12px; bottom: 12px;
+    width: auto;
     height: auto;
     max-height: 70vh;
-    border: none;
-    border-top: 1px solid var(--border-strong);
-    border-top-left-radius: var(--radius-lg);
-    border-top-right-radius: var(--radius-lg);
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    box-shadow: 0 -12px 40px rgba(0,0,0,0.14);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.18);
     transition: transform 280ms var(--ease);
   }
-  .sidebar.collapsed { transform: translateY(calc(100% - 140px)); }
+  .sidebar.collapsed { transform: translateY(calc(100% - 140px - 12px)); }
   .sidebar.expanded  { transform: translateY(0); }
   .sidebar-handle {
     display: flex;
@@ -1116,14 +1203,15 @@
     background: var(--border-strong);
   }
 
-  /* Detail full screen on mobile */
+  /* Detail full screen on mobile — z-index above the topbar so the
+     sticky-header close button is visible & clickable. */
   .detail-panel {
     top: 0; right: 0; bottom: 0; left: 0;
     width: 100%;
     border: none;
     border-radius: 0;
     box-shadow: none;
-    z-index: 45;
+    z-index: 100;
   }
   .detail-tabbody { padding: 18px 16px 60px; }
   .detail-name { font-size: 26px; letter-spacing: -0.6px; }

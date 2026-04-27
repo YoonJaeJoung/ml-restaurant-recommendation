@@ -143,3 +143,27 @@ export const IconViewport = make(
     <path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" />
   </>
 )
+
+// Counter-clockwise arrow (used by "Revert to overall ranking").
+export const IconUndo = make(
+  <>
+    <path d="M3 7v6h6" />
+    <path d="M21 17a9 9 0 0 0-15-6.7L3 13" />
+  </>
+)
+
+// Material Symbols ligature wrapper. Use for Google's pre-drawn glyphs
+// (sentiment_*, concierge, etc.). The font is loaded via index.html.
+export function MS({ name, size = 18, className = '' }) {
+  return (
+    <span
+      className={'material-symbols-outlined ' + className}
+      style={{
+        fontSize: size,
+        lineHeight: 1,
+        fontVariationSettings: '"opsz" 24, "wght" 400, "FILL" 0, "GRAD" 0',
+        verticalAlign: 'middle',
+      }}
+    >{name}</span>
+  )
+}

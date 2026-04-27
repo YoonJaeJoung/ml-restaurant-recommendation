@@ -1,5 +1,6 @@
 import DayTimePicker    from './DayTimePicker.jsx'
 import LocationControls from './LocationControls.jsx'
+import DietaryFilter    from './DietaryFilter.jsx'
 
 // Shared filter body reused by Home's accordion AND the Results topbar drop-down.
 // All state lives in `searchState` upstream; this component is just wiring.
@@ -28,6 +29,12 @@ export default function FilterPanel({ searchState, setSearchState }) {
           setBbox={(b) => setSearchState(s => ({ ...s, bbox: b }))}
           polygon={searchState.polygon}
           setPolygon={(p) => setSearchState(s => ({ ...s, polygon: p }))}
+        />
+      </div>
+      <div className="filter-section">
+        <DietaryFilter
+          selected={searchState.dietary}
+          onChange={(v) => setSearchState(s => ({ ...s, dietary: v }))}
         />
       </div>
     </>

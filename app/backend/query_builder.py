@@ -2,7 +2,8 @@
 query_builder.py — turn the 4-toggle selection into a natural-language query.
 
 Mirrors the logic in src/10_query_construction.py but as a pure function
-(no interactive prompts).
+(no interactive prompts). `priority` is multi-select; the schema enforces a
+list, but we tolerate string/None defensively.
 """
 from __future__ import annotations
 
@@ -11,6 +12,14 @@ from .schemas import ToggleSelection
 
 _CUISINE_NO_PREF = {"No preference", "no preference", "Any", "any", None, ""}
 _PRIORITY_NONE   = {"None", "none", None, ""}
+
+
+def _priority_list(p) -> list[str]:
+    if p is None:
+        return []
+    if isinstance(p, list):
+        return p
+    return [p]
 
 
 def build_query(t: ToggleSelection, free_text: str | None = None) -> str:
@@ -28,13 +37,9 @@ def build_query(t: ToggleSelection, free_text: str | None = None) -> str:
         parts.append(t.vibe)
     if t.occasion:
         parts.append(t.occasion)
-    if t.priority:
-        if isinstance(t.priority, list):
-            filtered = [p for p in t.priority if p not in _PRIORITY_NONE]
-            if filtered:
-                parts.append(' '.join(filtered))
-        else:
-            parts.append(t.priority)
+    priorities = [p for p in _priority_list(t.priority) if p not in _PRIORITY_NONE]
+    if priorities:
+        parts.append(" ".join(priorities))
     built = " ".join(parts).strip()
     if free_text and free_text.strip():
         return f"{free_text.strip()} {built}".strip() if built else free_text.strip()

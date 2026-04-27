@@ -4,23 +4,26 @@ import ResultCard    from '../components/ResultCard.jsx'
 import Spinner       from '../components/Spinner.jsx'
 import Detail        from './Detail.jsx'
 import {
-  IconTarget, IconStar, IconUtensils, IconService, IconClock, IconDollar,
+  IconUtensils, IconClock, IconDollar, IconUndo, MS,
 } from '../components/Icons.jsx'
 
-// Sort keys + the field each reads. Overall preserves the original rank.
-// Laid out as two fixed rows: [Overall, Google] on row 1 and the four aspects
-// on row 2 so the visual hierarchy matches the score cells in the Detail panel.
-const SORT_ROW_1 = [
-  { key: 'overall', Icon: IconTarget,   label: 'Overall', field: 'final_score'          },
-  { key: 'rating',  Icon: IconStar,     label: 'Google',  field: 'avg_rating'           },
+// 4-aspect satisfaction sort. Overall isn't a button — it's the default
+// (preserves the search ranker's order); the user reverts via the Revert
+// button when an aspect sort is active. Price uses raw `aspect_price`.
+const ASPECT_SORTS = [
+  { key: 'food',    Icon: IconUtensils, label: 'Food',    field: 'aspect_food'      },
+  { key: 'service', MSName: 'concierge', label: 'Service', field: 'aspect_service'   },
+  { key: 'wait',    Icon: IconClock,    label: 'Wait',    field: 'aspect_wait_time' },
+  { key: 'price',   Icon: IconDollar,   label: 'Price',   field: 'aspect_price'     },
 ]
-const SORT_ROW_2 = [
-  { key: 'food',    Icon: IconUtensils, label: 'Food',    field: 'aspect_food'          },
-  { key: 'service', Icon: IconService,  label: 'Service', field: 'aspect_service'       },
-  { key: 'wait',    Icon: IconClock,    label: 'Wait',    field: 'aspect_wait_time'     },
-  { key: 'price',   Icon: IconDollar,   label: 'Price',   field: 'aspect_price_blended' },
-]
-const SORTS = [...SORT_ROW_1, ...SORT_ROW_2]
+
+const SORT_LABELS = {
+  overall: 'Overall Ranking',
+  food:    'Food',
+  service: 'Service',
+  wait:    'Wait',
+  price:   'Price',
+}
 
 export default function Results({
   searchState,
@@ -37,7 +40,7 @@ export default function Results({
   // Sort client-side using the chosen field; null values sink to the bottom.
   const results = useMemo(() => {
     if (sortKey === 'overall') return rawResults
-    const s = SORTS.find(x => x.key === sortKey)
+    const s = ASPECT_SORTS.find(x => x.key === sortKey)
     if (!s) return rawResults
     return [...rawResults].sort((a, b) => {
       const va = a[s.field]; const vb = b[s.field]
@@ -51,6 +54,9 @@ export default function Results({
 
   const maxScore = rawResults[0]?.final_score ?? 1
   const center = searchState.pin
+  const filteredOut = response
+    ? Math.max(0, response.total_candidates - response.filtered_candidates)
+    : 0
 
   return (
     <div className="results-root">
@@ -68,45 +74,56 @@ export default function Results({
         />
       </div>
 
-      {/* Sidebar: sticky header (meta + sort row), scrolling list */}
+      {/* Sidebar: sticky header + scrolling list */}
       <aside className={'sidebar ' + (sheetExpanded ? 'expanded' : 'collapsed')}>
         <div className="sidebar-handle" onClick={() => setSheetExpanded(e => !e)} />
 
         {response && !loading && (
           <div className="sidebar-sticky-head">
-            <div className="results-meta">
-              <span className="mono-label">
-                {rawResults.length} places
-                {response.filtered_candidates < response.total_candidates && (
-                  <span
-                    className="filtered-count"
-                    title={`Your location / time filters removed ${response.total_candidates - response.filtered_candidates} of the ${response.total_candidates} semantic candidates`}
-                  >
-                    {' · '}{response.total_candidates - response.filtered_candidates} filtered out
-                  </span>
-                )}
+            <div className="results-headline">
+              <span className="results-headline-main">
+                Top {rawResults.length} Results Sorted by{' '}
+                <strong>{SORT_LABELS[sortKey] || 'Overall Ranking'}</strong>.
               </span>
+              {filteredOut > 0 && (
+                <span
+                  className="results-headline-sub"
+                  title={`${filteredOut} of the top ${response.total_candidates} semantic candidates were dropped by your filters.`}
+                >
+                  ({filteredOut} results are filtered out by time, location, and dietary filter.)
+                </span>
+              )}
+            </div>
+            <div className="results-meta">
               <span className="mono-meta">
                 retrieval {response.retrieval_ms.toFixed(0)}ms · rank {response.rank_ms.toFixed(0)}ms
               </span>
             </div>
             <div className="sort-section">
-              <div className="mono-label sort-label">Sort by…</div>
-              {[SORT_ROW_1, SORT_ROW_2].map((row, i) => (
-                <div key={i} className="sort-row">
-                  {row.map(({ key, Icon, label }) => (
-                    <button
-                      key={key}
-                      className={'sort-btn' + (sortKey === key ? ' active' : '')}
-                      onClick={() => setSortKey(key)}
-                      title={label}
-                    >
-                      <Icon size={13} />
-                      <span>{label}</span>
-                    </button>
-                  ))}
-                </div>
-              ))}
+              <div className="mono-label sort-label">Reorder the result by user's satisfaction on…</div>
+              <div className="sort-row">
+                {ASPECT_SORTS.map(({ key, Icon, MSName, label }) => (
+                  <button
+                    key={key}
+                    className={'sort-btn' + (sortKey === key ? ' active' : '')}
+                    onClick={() => setSortKey(key)}
+                    title={label}
+                  >
+                    {Icon ? <Icon size={13} /> : <MS name={MSName} size={15} />}
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+              {sortKey !== 'overall' && (
+                <button
+                  className="revert-btn"
+                  onClick={() => setSortKey('overall')}
+                  title="Restore the search engine's overall ranking"
+                >
+                  <IconUndo size={13} />
+                  <span>Revert to overall ranking</span>
+                </button>
+              )}
             </div>
           </div>
         )}

@@ -372,7 +372,7 @@ Files (flat, under `src/`):
 | `src/ranking.py` | Importable ranker: `rank_candidates`, `tier_to_score`, normalization helpers |
 | `src/8_ranking.py` | Standalone CLI — runs `precompute_all_aspect_scores` end-to-end and writes back into `data/processed/meta-NYC-restaurant.parquet` |
 | `src/9_search_test_ranking.py` | Interactive terminal CLI that runs the full search + rank pipeline |
-| `src/10_query_construction.py` | CLI that builds a query string from 4 toggle questions |
+| `src/10_query_construction.py` | CLI that builds a query string from 4 toggle questions. The priority list is **dynamic** (varies by visit time slot — breakfast / lunch / dinner / anytime) and **multi-select** (pick any combination, or `None`). Mirrors `app/frontend/src/components/InspireBuilder.jsx` and `app/backend/query_builder.py`. |
 
 ### ABSA Score Semantics
 
@@ -483,6 +483,45 @@ schemas, search, detail, browse, geo, hours, query_builder), frontend
 structure (views + components + hooks + api), API spec, design system,
 environment setup (Mapbox token), and run / smoke-test commands.
 
+## Deployment
+
+The app ships as three independent remote pieces:
+
+- **Frontend → Vercel.** Vite build (`npm run build`) of `app/frontend/`
+  deployed as a static SPA. `VITE_API_BASE` (set in the Vercel project's
+  env vars) points at the backend Space.
+- **Backend → Hugging Face Space (Docker).** FastAPI image defined in
+  `deploy/hf-space/Dockerfile`, entrypoint downloads the artifact snapshot
+  from a Hugging Face Dataset, then runs `uvicorn` on port 7860.
+- **Artifacts → Hugging Face Dataset.** The ~1.45 GB of parquets +
+  `review_embeddings_pca.npy` + cluster files live in a separate Dataset
+  repo, uploaded once via `deploy/hf-dataset/upload.py`. The Space pulls
+  them at container start via `huggingface_hub.snapshot_download`.
+
+Backend env vars (Space → Settings → Variables and secrets):
+- `HF_DATASET_REPO` — e.g. `<user>/nyc-restaurant-artifacts`.
+- `ALLOWED_ORIGIN_REGEX` — e.g. `https://.*\.vercel\.app`.
+
+### Steps
+
+1. Create the HF Dataset repo, `huggingface-cli login`, then:
+   ```bash
+   python deploy/hf-dataset/upload.py <user>/nyc-restaurant-artifacts
+   ```
+2. Create a Docker Space on HF, clone it locally, then:
+   ```bash
+   deploy/hf-space/sync.sh ~/hf-space-api
+   (cd ~/hf-space-api && git add -A && git commit -m "deploy" && git push)
+   ```
+3. In Vercel, import the repo with root directory `app/frontend/`, framework
+   **Vite**, and set `VITE_API_BASE` (and optionally `VITE_MAPBOX_TOKEN`)
+   in the project environment.
+4. Set `ALLOWED_ORIGIN_REGEX` on the Space to match the Vercel origin, then
+   restart the Space.
+
+Local dev is unchanged: `ARTIFACTS_DIR` / `ALLOWED_ORIGIN_REGEX` default to
+the repo root / localhost when unset.
+
 ## Repo Structure
 
 ```
@@ -514,7 +553,7 @@ ml-restaurant-recommendation/
 │   ├── 7_similarity.py              # CLI: production search engine
 │   ├── 8_ranking.py                 # CLI: offline ABSA precompute → meta parquet
 │   ├── 9_search_test_ranking.py     # CLI: interactive search + rank REPL
-│   ├── 10_query_construction.py     # CLI: 4-toggle query builder
+│   ├── 10_query_construction.py     # CLI: 4-toggle query builder (priorities vary by time slot; multi-select)
 │   ├── absa.py                      # Importable lib: ABSA core + get_aspect_prefs
 │   ├── similarity.py                # Importable lib: importlib wrapper for 7_similarity
 │   └── ranking.py                   # Importable lib: query-time ranking formula
@@ -523,5 +562,8 @@ ml-restaurant-recommendation/
 │   ├── backend/                     # FastAPI service (routes, state, search, detail, …)
 │   ├── frontend/                    # Vite + React SPA (views, components, hooks, …)
 │   └── design sample/               # Early static design mocks
+├── deploy/                          # Deployment scaffolding (Vercel + HF Space)
+│   ├── hf-space/                    # Dockerfile, entrypoint.sh, README (YAML), sync.sh
+│   └── hf-dataset/upload.py         # One-shot uploader for the artifact Dataset repo
 └── .gitattributes                   # Git LFS configuration
 ```

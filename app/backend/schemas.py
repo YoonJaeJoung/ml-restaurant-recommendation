@@ -58,6 +58,10 @@ class SearchRequest(BaseModel):
     toggles: Optional[ToggleSelection] = None
     location: LocationFilter = Field(default_factory=LocationFilter)
     time: TimeFilter = Field(default_factory=TimeFilter)
+    # Multi-select dietary restriction; OR semantics across the picked sets.
+    # See `DIETARY_CATEGORY_SETS` in app/backend/search.py for the exact
+    # `category` strings that count.
+    dietary: Optional[list[Literal["vegetarian", "halal"]]] = None
     limit: int = 30
     alpha: float = 0.4
     beta: float = 0.5

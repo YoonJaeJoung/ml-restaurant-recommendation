@@ -286,7 +286,7 @@ export default function MapView({
       </FeatureGroup>
 
       {/* User/radius center pin */}
-      {userPin && (mode === 'edit-nearby' || mode === 'results') && (
+      {userPin && (mode === 'edit-nearby' || mode === 'edit-area' || mode === 'results') && (
         <>
           <Marker position={[userPin.lat, userPin.lon]} icon={userIcon} />
           {(mode === 'edit-nearby') && radiusKm && (

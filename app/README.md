@@ -45,13 +45,13 @@ context manager in `main.py`.
 |---|---|
 | `main.py` | FastAPI app factory, lifespan loader, CORS regex for any localhost port, route registrations. |
 | `state.py` | `AppState` dataclass + `load_all()` loader. Memmap's the 128-dim PCA review embeddings (~1 GB on disk, zero-copy), loads `review-NYC-restaurant-filtered.parquet` (gmap_id column for retrieval; full rows for the detail endpoint), `meta-NYC-restaurant.parquet` (asserts the 4 `aspect_*` columns exist), cluster centroids + assignments, and the cluster summary JSON. Caches `log_reviews_max` for the ranker. |
-| `schemas.py` | Pydantic v2 models: `LocationFilter` (5 modes: `all` / `borough` / `radius` / `bbox` / `polygon`), `TimeFilter` (`at` + `any_time`; the field is deliberately named `at` — see note below), `ToggleSelection`, `SearchRequest`/`Response`, `RestaurantSummary` (includes `aspect_food/service/price/price_blended/wait_time` so the sidebar can sort client-side), `RestaurantDetail`, `ReviewsPage`, `BrowseResponse`. |
+| `schemas.py` | Pydantic v2 models: `LocationFilter` (5 modes: `all` / `borough` / `radius` / `bbox` / `polygon`), `TimeFilter` (`at` + `any_time`; the field is deliberately named `at` — see note below), `ToggleSelection` (`occasion` / `vibe` / `cuisine` are single-pick strings; **`priority` is `Optional[list[str]]` — multi-select**), `SearchRequest`/`Response`, `RestaurantSummary` (includes `aspect_food/service/price/price_blended/wait_time` so the sidebar can sort client-side), `RestaurantDetail`, `ReviewsPage`, `BrowseResponse`. |
 | `search.py` | End-to-end search orchestration. `do_search(req)` composes the query → `get_aspect_prefs` → `search_pca_within_clusters` → NYC-ZIP filter → `filter_by_location` → `is_open_at` → `rank_candidates` → `_summary_rows`. Constants `TOP_N_CLUSTERS=5`, `K_REVIEWS_PER_SEARCH=500`, `RETRIEVAL_POOL=500`. |
 | `detail.py` | `get_detail(gmap_id)` → `RestaurantDetail`. Applies the same 50/50 price blend from `src.ranking`. `get_reviews(gmap_id, page, page_size)` paginates reviews, sorts photos-first then recency-desc, and renders the **English-only** text from `text_for_embedding` (stripped of `(Translated by Google)` / `(Original)` blocks by the data-processing step). |
 | `browse.py` | `GET /api/browse`. Returns every restaurant that passes three gates: (1) has lat/lon, (2) has a valid NYC ZIP, (3) appears in the filtered reviews parquet (⇒ ≥15 English reviews, no Chinese-only noise). ~19.4k points; same universe the search engine ranks over. |
 | `geo.py` | `filter_by_location(meta, loc)`: vectorised haversine for `radius`, bbox membership for `bbox`, Shapely `Polygon.contains` for `polygon`, `isin` for `borough`. |
 | `hours.py` | `is_open_at(hours_info, visit)` → `True / False / None`. Parses the legacy Google hour strings (`Monday11AM–10PM`, handles overnight ranges). `None` means "unknown" and is kept by the search filter (err on inclusion). |
-| `query_builder.py` | Pure function `build_query(toggles, free_text)` mirroring `src/10_query_construction.py`. Order: cuisine → vibe → occasion → priority, with free text prepended when supplied. |
+| `query_builder.py` | Pure function `build_query(toggles, free_text)` mirroring `src/10_query_construction.py`. Order: cuisine → vibe → occasion → priority, with free text prepended when supplied. `priority` is a list (multi-select); the helper joins all non-`"None"` picks with spaces. Tolerates string/None defensively. |
 | `requirements.txt` | FastAPI, uvicorn[standard], shapely, pydantic. Install into the **project** venv (not a separate app venv). |
 
 ### Search request lifecycle
@@ -93,7 +93,7 @@ only `None` — every real value 422s with `none_required`. Renaming the field t
 | Endpoint | Description |
 |---|---|
 | `GET /api/health` | Liveness. |
-| `POST /api/search` | Request: `{query, toggles, location: {mode, …}, time: {at?, any_time}, limit=30}`. Response: ranked summaries + matched clusters + timing + `aspect_*` per result. |
+| `POST /api/search` | Request: `{query, toggles: {occasion, vibe, cuisine, priority: string[]}, location: {mode, …}, time: {at?, any_time}, limit=30}` (`priority` is multi-select; pass `[]` or omit to skip). Response: ranked summaries + matched clusters + timing + `aspect_*` per result. |
 | `GET /api/browse` | All NYC restaurants that qualified through the data pipeline. ~19.4k points; used by the clustered browse-all map. |
 | `GET /api/restaurant/{gmap_id}` | Full detail, including blended price, `state` (Google's live open/closed status), `misc`, category, hours. |
 | `GET /api/restaurant/{gmap_id}/reviews?page=&page_size=` | Paginated reviews. Returns the English `text_for_embedding` (falls back to raw `text` if missing). Photo URLs flattened. Photos-first then recency-desc. |
@@ -135,7 +135,7 @@ interaction.
 | `components/BoroughSelector.jsx` | Multi-select chips + All NYC toggle. Selecting a borough deselects All NYC, clicking All NYC clears boroughs. No disabled state. |
 | `components/DayTimePicker.jsx` | `DAY` row: Today / Tomorrow / Select day (reveals a Mon–Sun row) / Any time. `TIME` row: Breakfast (9AM) / Lunch (12PM) / Dinner (6PM) / Custom (reveals a `<input type="time">` styled like a weekday chip). |
 | `components/FilterPanel.jsx` | Shared wrapper around `DayTimePicker` + `LocationControls`. Used by both the Home filter accordion and the Results topbar drop-down. |
-| `components/InspireBuilder.jsx` | 4-question chip grid (cuisine / vibe / occasion / priority). Live-updates the query field via `buildQueryFromToggles` as chips toggle. Cancel restores the prior query; Search commits + triggers search. |
+| `components/InspireBuilder.jsx` | 4-question chip grid (cuisine / vibe / occasion / priority). The first three are single-select; **priority is multi-select and its option list is *dynamic***, swapping based on the visit time slot from the filter (`breakfast` 6–11, `lunch` 11–16, `dinner` 16–23, `anytime` otherwise) — e.g. breakfast surfaces `Good coffee` and `Good brunch`, dinner surfaces `Great cocktails` and `Late night`. A `useEffect` clears any priority picks that aren't valid for the new slot when the time changes, so stale selections never leak into the search. The `None` chip acts as a single-select escape hatch (clears the rest, and re-clicking it clears everything). Live-updates the query field via `buildQueryFromToggles` as chips toggle. Cancel restores the prior query; Search commits + triggers search. |
 | `components/ResultCard.jsx` | Hoverable, selectable ranked row. `selected` state uses a full 2-px accent outline (not a left stripe). |
 | `components/Icons.jsx` | Zero-dependency inline SVG icon components (Lucide-port). Exports `IconStar` / `Utensils` / `Service` (smile face) / `Clock` / `Dollar` / `Target` / `ArrowLeft` / `Github` / `Plus` / `Minus` / `Locate` / `Polygon` / `Rectangle` / `Viewport` / `Close` / `Search` / `Chevron*`. |
 | `components/HelpModal.jsx` | Full pipeline math: embeddings → PCA → clustering → ABSA → ranking. |
@@ -147,7 +147,7 @@ interaction.
 | File | Role |
 |---|---|
 | `hooks/useGeolocation.js` | `useGeolocation(enabled)` — gated by the `enabled` flag. Times Square fallback if the permission is denied or times out. No longer called on page mount or tab switch — only from the `Current Location` button in `MapInline`. |
-| `lib/queryBuilder.js` | `buildQueryFromToggles(t)` — client-side mirror of `src/10_query_construction.py` / `backend/query_builder.py`. Drives the live auto-fill in `InspireBuilder`. |
+| `lib/queryBuilder.js` | `buildQueryFromToggles(t)` — client-side mirror of `src/10_query_construction.py` / `backend/query_builder.py`. Drives the live auto-fill in `InspireBuilder`. Joins multi-select `priority` (an array; `None` filtered out) with spaces; tolerates string/null shapes defensively. |
 | `api/client.js` | Tiny `fetch` wrapper. `api.search / detail / reviews / browse / health`. Formats Pydantic 422 arrays into human-readable `field: msg; …` strings (not `[object Object]`). |
 
 ### Design system

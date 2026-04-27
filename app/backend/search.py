@@ -39,6 +39,14 @@ TOP_N_CLUSTERS       = 5
 K_REVIEWS_PER_SEARCH = 500
 RETRIEVAL_POOL       = 500        # restaurants out of the semantic stage
 
+# Dietary filter — which Google `category` strings qualify a restaurant.
+# Multi-select OR semantics: when the user picks both, a restaurant only
+# needs to match one set.
+DIETARY_CATEGORY_SETS = {
+    "vegetarian": {"Vegan restaurant", "Vegetarian cafe and deli", "Vegetarian restaurant"},
+    "halal":      {"Halal restaurant"},
+}
+
 
 def _matched_clusters(best_clusters: list[int]) -> list[MatchedCluster]:
     out = []
@@ -145,8 +153,8 @@ def do_search(req: SearchRequest) -> SearchResponse:
             retrieval_ms=retrieval_ms, rank_ms=0.0,
         )
 
-    # 4. Merge full meta (for lat/lon/hours/etc.) onto candidates if missing.
-    merge_cols = [c for c in ["address", "latitude", "longitude", "hours"]
+    # 4. Merge full meta (for lat/lon/hours/category/etc.) onto candidates if missing.
+    merge_cols = [c for c in ["address", "latitude", "longitude", "hours", "category"]
                   if c not in candidates.columns and c in STATE.meta.columns]
     if merge_cols:
         candidates = candidates.merge(
@@ -164,6 +172,20 @@ def do_search(req: SearchRequest) -> SearchResponse:
         meta_mask = filter_by_location(STATE.meta, req.location)
         allowed_ids = set(STATE.meta.loc[meta_mask, "gmap_id"])
         candidates = candidates[candidates["gmap_id"].isin(allowed_ids)].copy()
+
+    # 5b. Dietary filter (multi-select; OR across the picked sets).
+    if req.dietary:
+        targets: set[str] = set().union(
+            *(DIETARY_CATEGORY_SETS[d] for d in req.dietary if d in DIETARY_CATEGORY_SETS)
+        )
+        if targets:
+            def _matches_dietary(cats) -> bool:
+                if cats is None:
+                    return False
+                if isinstance(cats, (list, np.ndarray)):
+                    return bool(targets.intersection(cats))
+                return False
+            candidates = candidates[candidates["category"].apply(_matches_dietary)].copy()
 
     # 6. Time filter
     if not req.time.any_time and req.time.at is not None:

@@ -13,7 +13,7 @@ import { api }      from './api/client.js'
 
 const DEFAULT_SEARCH_STATE = {
   query: '',
-  toggles: { occasion: null, vibe: null, cuisine: null, priority: null },
+  toggles: { occasion: null, vibe: null, cuisine: null, priority: [] },
 
   visitDate: new Date(),
   anyTime: false,
@@ -25,6 +25,10 @@ const DEFAULT_SEARCH_STATE = {
 
   bbox: null,
   polygon: null,
+
+  // Multi-select dietary restriction. Empty array = no filter.
+  // Active values map to backend literals "vegetarian" / "halal".
+  dietary: [],
 }
 
 function formatDayTimeSummary(visit, anyTime) {
@@ -101,13 +105,17 @@ export default function App() {
     if (!s.anyTime && s.visitDate) {
       timeObj.at = s.visitDate.toISOString().replace('Z', '')
     }
-    return {
+    const payload = {
       query: s.query,
       toggles: s.toggles,
       location: buildLocationPayload(s),
       time: timeObj,
       limit: 30,
     }
+    if (Array.isArray(s.dietary) && s.dietary.length > 0) {
+      payload.dietary = s.dietary
+    }
+    return payload
   }, [searchState])
 
   const runSearch = useCallback(async () => {
@@ -115,9 +123,13 @@ export default function App() {
     try {
       const payload = buildPayload()
       const hasQuery = !!payload.query?.trim()
-      const hasToggles = Object.values(payload.toggles || {}).some(
-        v => v && v !== 'No preference' && v !== 'None'
-      )
+      const hasToggles = Object.entries(payload.toggles || {}).some(([k, v]) => {
+        if (k === 'priority') {
+          const arr = Array.isArray(v) ? v : (v ? [v] : [])
+          return arr.some(p => p && p !== 'None')
+        }
+        return v && v !== 'No preference' && v !== 'None'
+      })
       if (!hasQuery && !hasToggles) {
         setError('Enter a query or pick at least one option.')
         setLoading(false)

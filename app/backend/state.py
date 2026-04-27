@@ -25,14 +25,19 @@ from src.absa       import ASPECT_COLS
 from src.similarity import load_model, load_pca_model, load_embeddings_raw
 
 
-# ── Artifact paths (relative to repo root) ──────────────────────────────────
-REVIEW_PATH         = REPO_ROOT / "data/processed/review-NYC-restaurant-filtered.parquet"
-META_PATH           = REPO_ROOT / "data/processed/meta-NYC-restaurant.parquet"
-PCA_EMBEDDINGS_PATH = REPO_ROOT / "results/pca/review_embeddings_pca.npy"
-PCA_MODEL_PATH      = REPO_ROOT / "results/pca/pca_model.pkl"
-CENTROIDS_PATH      = REPO_ROOT / "results/clustering/cluster_centroids.npy"
-CLUSTERS_PATH       = REPO_ROOT / "results/clustering/restaurant_clusters.csv"
-CLUSTER_SUMMARY     = REPO_ROOT / "results/clustering/evaluation/cluster_summary.json"
+# ── Artifact paths ──────────────────────────────────────────────────────────
+# ARTIFACTS_DIR lets deployments (e.g. HF Space) point at a directory populated
+# at container-start from the HF Dataset repo. Locally it defaults to the repo
+# root so dev behavior is unchanged.
+ARTIFACTS_DIR = Path(os.environ.get("ARTIFACTS_DIR", str(REPO_ROOT)))
+
+REVIEW_PATH         = ARTIFACTS_DIR / "data/processed/review-NYC-restaurant-filtered.parquet"
+META_PATH           = ARTIFACTS_DIR / "data/processed/meta-NYC-restaurant.parquet"
+PCA_EMBEDDINGS_PATH = ARTIFACTS_DIR / "results/pca/review_embeddings_pca.npy"
+PCA_MODEL_PATH      = ARTIFACTS_DIR / "results/pca/pca_model.pkl"
+CENTROIDS_PATH      = ARTIFACTS_DIR / "results/clustering/cluster_centroids.npy"
+CLUSTERS_PATH       = ARTIFACTS_DIR / "results/clustering/restaurant_clusters.csv"
+CLUSTER_SUMMARY     = ARTIFACTS_DIR / "results/clustering/evaluation/cluster_summary.json"
 
 PCA_DIM = 128
 
