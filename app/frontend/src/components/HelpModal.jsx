@@ -1,5 +1,14 @@
 export default function HelpModal({ open, onClose }) {
   if (!open) return null
+  
+  const clusterExamples = [
+    { id: 0, name: "BBQ & Soul Food", keywords: "chicken, bbq, order, friendly, rice" },
+    { id: 1, name: "Italian Fine Dining", keywords: "pasta, italian, wine, menu, atmosphere" },
+    { id: 12, name: "Thai & Asian", keywords: "thai, pad, curry, rice, chicken" },
+    { id: 38, name: "Fast Casual Mexican", keywords: "chipotle, burrito, clean, location, fresh" },
+    { id: 49, name: "Intimate Bistros", keywords: "italian, pasta, atmosphere, wine, dinner" }
+  ]
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -10,6 +19,40 @@ export default function HelpModal({ open, onClose }) {
             aspect-based re-ranker that weighs what you actually care about. The pipeline has five stages.
           </p>
 
+          <h3>0. Data Collection</h3>
+          <p>
+            We started with 19,532 NYC restaurants and 2.1M Google reviews from the UCSD Google Local Reviews dataset.
+            Raw data was filtered for authentic English reviews (removed CJK characters), grouped by restaurant,
+            and downsampled to the top 500 most detailed reviews per location to balance dataset size.
+          </p>
+          
+          <details>
+            <summary style={{cursor: 'pointer', fontWeight: 'bold', marginBottom: '12px'}}>
+              📄 Raw data example (click to expand)
+            </summary>
+            <div style={{marginLeft: '12px', marginTop: '12px', backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '6px', fontSize: '12px', fontFamily: 'monospace', overflow: 'auto', maxHeight: '200px', lineHeight: '1.4'}}>
+              <div><strong>Restaurant Metadata:</strong></div>
+              <div>name: "Eleven Madison Park"</div>
+              <div>address: "11 Madison Avenue, New York, NY 10010"</div>
+              <div>avg_rating: 4.8</div>
+              <div>num_reviews: 2847</div>
+              <div>price: "$$$$"</div>
+              <div>category: ["American", "Fine Dining"]</div>
+              <br/>
+              <div><strong>Sample Review:</strong></div>
+              <div>"Came here for my anniversary. The tasting menu was absolutely</div>
+              <div>exquisite — each course was a work of art. Service was impeccable,</div>
+              <div>staff anticipated our needs before we even asked. The wine pairing was</div>
+              <div>expertly curated. Definitely worth the price tag. Can't wait to go back!"</div>
+              <br/>
+              <div><strong>After processing →</strong></div>
+              <div>✅ Keeps original English review</div>
+              <div>✅ Embeds with nomic-embed-text-v1.5 (768-dim)</div>
+              <div>✅ Grouped by restaurant</div>
+              <div>✅ Filtered by detail level (length)</div>
+            </div>
+          </details>
+
           <h3>1. Sentence embeddings</h3>
           <p>
             Every review is embedded once, offline, using <code>nomic-embed-text-v1.5</code> (768-dim vectors).
@@ -19,18 +62,40 @@ export default function HelpModal({ open, onClose }) {
 
           <h3>2. PCA compression</h3>
           <p>
-            768-dim vectors are projected down to 128 dimensions by a fitted PCA. This keeps ~99% of the variance
+            768-dim vectors are projected down to 128 dimensions by a fitted PCA. This keeps ~75.5% of the variance
             but makes per-query retrieval ~99× faster. Both restaurant embeddings and your query get projected
             with the same model.
           </p>
 
-          <h3>3. K-means clusters</h3>
+          <h3>3. K-means clusters (50 semantic groups)</h3>
           <p>
             Restaurants are grouped into 50 clusters in PCA space — things like "ramen / broth / pork",
             "date-night / dim-lit / natural-wine", "quick-lunch / counter / deli". On each query we score the
             cluster centroids against your query and only search reviews inside the top-5 clusters — this is
             what drops retrieval from multi-second to sub-second.
           </p>
+          
+          <details>
+            <summary style={{cursor: 'pointer', fontWeight: 'bold', marginBottom: '12px'}}>
+              📊 Sample cluster profiles (click to expand)
+            </summary>
+            <div style={{marginLeft: '12px', marginTop: '12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px'}}>
+              {clusterExamples.map(cluster => (
+                <div key={cluster.id} style={{padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '6px', fontSize: '13px'}}>
+                  <strong>Cluster {cluster.id}: {cluster.name}</strong>
+                  <div style={{marginTop: '4px', color: '#666'}}>
+                    {cluster.keywords}
+                  </div>
+                  <img 
+                    src={`/results/clustering/evaluation/wordclouds/cluster_${cluster.id}.png`}
+                    alt={`Cluster ${cluster.id} wordcloud`}
+                    style={{width: '100%', marginTop: '8px', borderRadius: '4px', maxHeight: '120px', objectFit: 'cover'}}
+                  />
+                </div>
+              ))}
+            </div>
+          </details>
+
 
           <h3>4. Aspect-based sentiment scoring (ABSA)</h3>
           <p>
