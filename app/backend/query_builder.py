@@ -29,7 +29,12 @@ def build_query(t: ToggleSelection, free_text: str | None = None) -> str:
     if t.occasion:
         parts.append(t.occasion)
     if t.priority and t.priority not in _PRIORITY_NONE:
-        parts.append(t.priority)
+        if isinstance(t.priority, list):
+            filtered = [p for p in t.priority if p not in _PRIORITY_NONE]
+            if filtered:
+                parts.append(' '.join(filtered))
+        else:
+            parts.append(t.priority)
     built = " ".join(parts).strip()
     if free_text and free_text.strip():
         return f"{free_text.strip()} {built}".strip() if built else free_text.strip()

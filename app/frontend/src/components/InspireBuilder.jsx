@@ -43,7 +43,7 @@ const BASE_QUESTIONS = [
 // `onSearch` fires the search with the current toggles + query.
 export default function InspireBuilder({ initialQuery, initialToggles, visitDate, anyTime, onChange, onCancel, onSearch }) {
   const [toggles, setToggles] = useState(initialToggles || {
-    occasion: null, vibe: null, cuisine: null, priority: null
+    occasion: null, vibe: null, cuisine: null, priority: []
   })
 
   const timeSlot = getTimeSlot(visitDate, anyTime)
@@ -59,10 +59,17 @@ export default function InspireBuilder({ initialQuery, initialToggles, visitDate
   ]
 
   const set = (key, val) => {
-    const next = { ...toggles, [key]: toggles?.[key] === val ? null : val }
-    // If selected priority is no longer valid for this time slot, clear it
-    if (key !== 'priority' && next.priority && !priorityOptions.includes(next.priority)) {
-      next.priority = null
+    let next
+    if (key === 'priority') {
+      const current = toggles.priority || []
+      const already = current.includes(val)
+      const updated = already ? current.filter(v => v !== val) : [...current, val]
+      next = { ...toggles, priority: updated }
+    } else {
+      next = { ...toggles, [key]: toggles?.[key] === val ? null : val }
+      if (next.priority && next.priority.some(p => !priorityOptions.includes(p))) {
+        next.priority = next.priority.filter(p => priorityOptions.includes(p))
+      }
     }
     setToggles(next)
     onChange?.(buildQueryFromToggles(next), next)
@@ -78,7 +85,11 @@ export default function InspireBuilder({ initialQuery, initialToggles, visitDate
             {q.options.map((opt) => (
               <button
                 key={opt}
-                className={'toggle-chip' + (toggles?.[q.key] === opt ? ' active' : '')}
+                className={'toggle-chip' + (
+                  q.key === 'priority'
+                    ? (toggles?.priority || []).includes(opt) ? ' active' : ''
+                    : toggles?.[q.key] === opt ? ' active' : ''
+                )}
                 onClick={() => set(q.key, opt)}
               >{opt}</button>
             ))}
