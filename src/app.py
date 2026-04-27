@@ -108,7 +108,8 @@ def load_data():
         meta_df = pd.read_parquet("data/processed/meta-NYC-restaurant.parquet")
         
         # Merge the two dataframes on gmap_id
-        merged_df = pd.merge(clusters_df, meta_df[['gmap_id', 'description', 'hours', 'category', 'price', 'address', 'num_of_reviews']], 
+        pct_cols = [c for c in ['aspect_price_pct', 'aspect_wait_time_pct'] if c in meta_df.columns]
+        merged_df = pd.merge(clusters_df, meta_df[['gmap_id', 'description', 'hours', 'category', 'price', 'address', 'num_of_reviews'] + pct_cols],
                             on='gmap_id', how='left')
         
         return merged_df
@@ -398,8 +399,12 @@ if not df.empty:
                 try:
                     price = restaurant_info['price']
                     price_str = str(price) if price is not None else 'N/A'
-                    if price_str and price_str != 'N/A' and price_str.strip() and price_str != 'nan':
-                        st.markdown(f"**💰 Price Level:** {price_str}")
+                    pct_price = restaurant_info.get('aspect_price_pct', None)
+                    if price_str and price_str not in ('N/A', 'nan') and price_str.strip():
+                        if pd.notna(pct_price):
+                            st.markdown(f"**💰 Price Level:** {price_str} · more satisfying than **{int(pct_price)}%** of restaurants")
+                        else:
+                            st.markdown(f"**💰 Price Level:** {price_str}")
                 except:
                     pass
                 
@@ -420,7 +425,14 @@ if not df.empty:
             with info_col2:
                 if use_location and 'distance_km' in restaurant_info:
                     st.markdown(f"**📏 Distance from You:** {restaurant_info['distance_km']:.1f} km")
-            
+
+                try:
+                    pct_wait = restaurant_info.get('aspect_wait_time_pct', None)
+                    if pd.notna(pct_wait):
+                        st.markdown(f"**⏱️ Wait Time:** better than **{int(pct_wait)}%** of restaurants")
+                except:
+                    pass
+
             # Address
             st.markdown(f"**🏠 Address:** {restaurant_info.get('address', 'N/A')}")
             

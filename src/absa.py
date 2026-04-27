@@ -250,16 +250,27 @@ def precompute_all_aspect_scores(
         records.append(smoothed)
 
     scores_df = pd.DataFrame(records)
-
-    # ── Global min-max normalization per aspect ──
+    # fix: Percentile-based normalization per aspect (robust to outliers) ──
+    # Clip at [1st, 99th] percentile then min-max on the clipped range.
+    # Done once against the full database so rankings are stable across queries.
     for aspect in ASPECT_KEYWORDS:
         col = scores_df[aspect]
-        lo, hi = col.min(), col.max()
+        lo  = col.quantile(0.01)
+        hi  = col.quantile(0.99)
+        clipped = col.clip(lower=lo, upper=hi)
         if hi > lo:
-            scores_df[f"aspect_{aspect}"] = (col - lo) / (hi - lo)
+            scores_df[f"aspect_{aspect}"] = (clipped - lo) / (hi - lo)
         else:
             scores_df[f"aspect_{aspect}"] = 0.5
-    out_cols = ["gmap_id"] + ASPECT_COLS
+
+    # Percentile rank for price and wait_time (display only, not used in ranking)
+    for aspect in ("price", "wait_time"):
+        scores_df[f"aspect_{aspect}_pct"] = (
+            scores_df[f"aspect_{aspect}"].rank(pct=True) * 100
+        ).round(0).astype("Int64")
+
+    PCT_COLS = ["aspect_price_pct", "aspect_wait_time_pct"]
+    out_cols = ["gmap_id"] + ASPECT_COLS + PCT_COLS
 
     # ── Merge into meta parquet: drop any stale aspect_* columns first ──
     print(f"\nLoading meta from {meta_path} to merge aspect columns...")
