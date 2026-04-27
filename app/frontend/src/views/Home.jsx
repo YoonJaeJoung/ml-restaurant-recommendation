@@ -134,6 +134,8 @@ export default function Home({ searchState, setSearchState, onSearch, onBrowseAl
           <InspireBuilder
             initialQuery={searchState.query}
             initialToggles={searchState.toggles}
+            visitDate={searchState.visitDate}
+            anyTime={searchState.anyTime}
             onChange={inspireUpdate}
             onCancel={cancelInspire}
             onSearch={inspireSearch}
