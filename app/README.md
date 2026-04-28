@@ -45,8 +45,8 @@ context manager in `main.py`.
 |---|---|
 | `main.py` | FastAPI app factory, lifespan loader, CORS regex for any localhost port, route registrations. |
 | `state.py` | `AppState` dataclass + `load_all()` loader. Memmap's the 128-dim PCA review embeddings (~1 GB on disk, zero-copy), loads `review-NYC-restaurant-filtered.parquet` (gmap_id column for retrieval; full rows for the detail endpoint), `meta-NYC-restaurant.parquet` (asserts the 4 `aspect_*` columns exist), cluster centroids + assignments, and the cluster summary JSON. Caches `log_reviews_max` for the ranker. |
-| `schemas.py` | Pydantic v2 models: `LocationFilter` (5 modes: `all` / `borough` / `radius` / `bbox` / `polygon`), `TimeFilter` (`at` + `any_time`; the field is deliberately named `at` — see note below), `ToggleSelection` (`occasion` / `vibe` / `cuisine` are single-pick strings; **`priority` is `Optional[list[str]]` — multi-select**), `SearchRequest`/`Response`, `RestaurantSummary` (includes `aspect_food/service/price/price_blended/wait_time` so the sidebar can sort client-side), `RestaurantDetail`, `ReviewsPage`, `BrowseResponse`. |
-| `search.py` | End-to-end search orchestration. `do_search(req)` composes the query → `get_aspect_prefs` → `search_pca_within_clusters` → NYC-ZIP filter → `filter_by_location` → `is_open_at` → `rank_candidates` → `_summary_rows`. Constants `TOP_N_CLUSTERS=5`, `K_REVIEWS_PER_SEARCH=500`, `RETRIEVAL_POOL=500`. |
+| `schemas.py` | Pydantic v2 models: `LocationFilter` (5 modes: `all` / `borough` / `radius` / `bbox` / `polygon`), `TimeFilter` (`at` + `any_time`; the field is deliberately named `at` — see note below), `ToggleSelection` (`occasion` / `vibe` / `cuisine` are single-pick strings; **`priority` is `Optional[list[str]]` — multi-select**), `SearchRequest` (also carries an optional **`dietary: list["vegetarian"\|"halal"]`** filter), `RestaurantSummary` (includes `aspect_food/service/price/price_blended/wait_time` for client-side sort, **`aspect_price_pct` / `aspect_wait_time_pct`** percentile ranks within all NYC restaurants, and **`avg_similarity`** — the mean cosine similarity of the top-k reviews aggregated to this restaurant, surfaced in the UI as a "% Match" pill independent of the rating/ABSA blend), `RestaurantDetail` (with `state` = Google's live open/closed status), `ReviewsPage`, `BrowseResponse`. |
+| `search.py` | End-to-end search orchestration. `do_search(req)` composes the query → `get_aspect_prefs` → `search_pca_within_clusters` → NYC-ZIP filter → `filter_by_location` → **dietary filter** (multi-select OR over `DIETARY_CATEGORY_SETS`) → `is_open_at` → `rank_candidates` → `_summary_rows`. Constants `TOP_N_CLUSTERS=5`, `K_REVIEWS_PER_SEARCH=500`, `RETRIEVAL_POOL=500`. |
 | `detail.py` | `get_detail(gmap_id)` → `RestaurantDetail`. Applies the same 50/50 price blend from `src.ranking`. `get_reviews(gmap_id, page, page_size)` paginates reviews, sorts photos-first then recency-desc, and renders the **English-only** text from `text_for_embedding` (stripped of `(Translated by Google)` / `(Original)` blocks by the data-processing step). |
 | `browse.py` | `GET /api/browse`. Returns every restaurant that passes three gates: (1) has lat/lon, (2) has a valid NYC ZIP, (3) appears in the filtered reviews parquet (⇒ ≥15 English reviews, no Chinese-only noise). ~19.4k points; same universe the search engine ranks over. |
 | `geo.py` | `filter_by_location(meta, loc)`: vectorised haversine for `radius`, bbox membership for `bbox`, Shapely `Polygon.contains` for `polygon`, `isin` for `borough`. |
@@ -70,6 +70,8 @@ POST /api/search body
   │
   ├── filter: has_valid_nyc_zip(address)            → trims non-NYC leakage
   ├── filter_by_location(meta, req.location)        → borough/radius/bbox/polygon
+  ├── (if req.dietary)                              → categories must intersect
+  │      DIETARY_CATEGORY_SETS                          {Vegetarian / Halal}
   ├── is_open_at(row.hours, req.time.at)            → drops definitively-closed
   │
   ├── rank_candidates(candidates, meta, prefs, α, β, γ, log_reviews_max)
@@ -93,7 +95,7 @@ only `None` — every real value 422s with `none_required`. Renaming the field t
 | Endpoint | Description |
 |---|---|
 | `GET /api/health` | Liveness. |
-| `POST /api/search` | Request: `{query, toggles: {occasion, vibe, cuisine, priority: string[]}, location: {mode, …}, time: {at?, any_time}, limit=30}` (`priority` is multi-select; pass `[]` or omit to skip). Response: ranked summaries + matched clusters + timing + `aspect_*` per result. |
+| `POST /api/search` | Request: `{query, toggles: {occasion, vibe, cuisine, priority: string[]}, location: {mode, …}, time: {at?, any_time}, dietary?: ("vegetarian"\|"halal")[], limit=30}` (`priority` and `dietary` are both multi-select; pass `[]` or omit to skip). Response: ranked summaries (each with `final_score`, `avg_similarity`, raw + blended price aspects, `aspect_*_pct` percentiles) + matched clusters + timing. |
 | `GET /api/browse` | All NYC restaurants that qualified through the data pipeline. ~19.4k points; used by the clustered browse-all map. |
 | `GET /api/restaurant/{gmap_id}` | Full detail, including blended price, `state` (Google's live open/closed status), `misc`, category, hours. |
 | `GET /api/restaurant/{gmap_id}/reviews?page=&page_size=` | Paginated reviews. Returns the English `text_for_embedding` (falls back to raw `text` if missing). Photo URLs flattened. Photos-first then recency-desc. |
@@ -120,24 +122,25 @@ interaction.
 
 | File | Role |
 |---|---|
-| `views/Home.jsx` | Landing page. Title + subtitle, collapsible filter accordion (defaults `All NYC · Today · now`), query box with the live `✨ Need inspiration?` expansion, **Browse all restaurants** (outlined) + **Search** (filled) CTA row. |
-| `views/Results.jsx` | Sidebar (sticky header with meta + **Sort by…** row: Overall / Google / Food / Service / Wait / Price, re-sorts client-side) + full-bleed Mapbox map underneath + inline right-side Detail panel on desktop. No sidebar head; the toolbar moved into the app-level topbar. |
-| `views/BrowseAll.jsx` | Full-screen clustered map of every qualifying restaurant (`leaflet.markercluster`). Clicking a pin opens the full-page `Detail` variant. |
-| `views/Detail.jsx` | Works as both a full `page` and an inline `panel` variant. Sticky header (name, meta, Google Maps link, tab bar). Three tabs: **Score** (Overall as %, Food/Service/Price/Wait as X.X/10 with icons), **Detail** (Status, Description, Category, weekday×hours table, MISC — null → `-`), **Reviews** (paginated, 8/page, photos-first). |
+| `views/Home.jsx` | Landing page. Two-line title (declarative line + italic Fraunces accent-red question), warmer subtitle, collapsible filter accordion (defaults `All NYC · Today · now`), query box with the live `✨ Need inspiration?` expansion, **Browse all restaurants** (outlined) + **Search** (filled) CTA row. |
+| `views/Results.jsx` | Floating rounded-rectangle sidebar (no header — the toolbar moved into the app-level topbar). Sticky head shows a conversational headline (*"Top N Results Sorted by Overall Satisfaction Score …"* / *"…resorted based on Food satisfaction."*), retrieval timing, and a **"Reorder the result by user's satisfaction on…"** row of 4 chips (Food / Service / Wait / Price — service uses the Material Symbols `concierge` glyph). When an aspect sort is active, an inline **↶ Revert to overall ranking** button appears. Marker clicks scroll the matching card into view. Behind the sidebar is the full-bleed Mapbox map; the inline right-side Detail panel slides in on desktop. |
+| `views/BrowseAll.jsx` | Full-screen clustered map of every qualifying restaurant (`leaflet.markercluster`). Clicking a pin opens an inline right-side Detail panel (same as Results, no full-page navigation). |
+| `views/Detail.jsx` | Works as both a full `page` and an inline `panel` variant. Sticky header (name + address row, then a secondary row with `★ rating` / `$` tier / **% Match** when present, then Google Maps link + tab bar). Three tabs: **Satisfaction Score** (Overall as `X.X/5` with sentiment glyph, then 4 aspect cells — Food / Service / Price / Wait — each `X.X/5` plus a Google Material Symbols sentiment face matched to the rounded score; Price + Wait also show *"Better than X% of NYC restaurants"* using the precomputed percentile rank), **Detail** (Status, Description, Category, weekday×hours table, MISC — null → `-`), **Reviews** (paginated, 8/page, photos-first). |
 
 ### Components
 
 | File | Role |
 |---|---|
 | `components/MapView.jsx` | `react-leaflet` + Mapbox raster tiles + `leaflet-draw` (polygon **and** rectangle) + `leaflet.markercluster`. Teardrop result pins (top-5 numbered). Custom `drawTrigger` to drive draw tools from our own buttons instead of the stock leaflet-draw toolbar (which is CSS-hidden). `MapRefExposer` exposes the map imperatively for `zoomIn/zoomOut/getBounds`. |
-| `components/MapInline.jsx` | 320-px map embedded inside the filter body. Two modes: `nearby` (pin + radius + `Current Location` button — the *only* code path that triggers geolocation) or `area` (overlay buttons: `Use current viewport` / `Draw Polygon` / `Draw Rectangle` → collapse to `Clear Selection` once a shape exists). Custom horizontal +/- zoom widget above the hint box. |
+| `components/MapInline.jsx` | 320-px map embedded inside the filter body. Two modes: `nearby` (pin + radius + `Current Location` button — the *only* code path that triggers geolocation) or `area` (overlay buttons: `Use current viewport` / `Draw Polygon` / `Draw Rectangle` / `Current Location` → collapse to `Clear Selection` + `Current Location` once a shape exists). Custom horizontal +/- zoom widget above the hint box. |
 | `components/LocationControls.jsx` | 3-tab segmented control (flex:1 each): Select Borough / Search nearby / Select area from map. |
 | `components/BoroughSelector.jsx` | Multi-select chips + All NYC toggle. Selecting a borough deselects All NYC, clicking All NYC clears boroughs. No disabled state. |
 | `components/DayTimePicker.jsx` | `DAY` row: Today / Tomorrow / Select day (reveals a Mon–Sun row) / Any time. `TIME` row: Breakfast (9AM) / Lunch (12PM) / Dinner (6PM) / Custom (reveals a `<input type="time">` styled like a weekday chip). |
-| `components/FilterPanel.jsx` | Shared wrapper around `DayTimePicker` + `LocationControls`. Used by both the Home filter accordion and the Results topbar drop-down. |
+| `components/DietaryFilter.jsx` | Multi-select Vegetarian / Halal chips, marked **Experimental** with an inline `?` that reveals a warning: the filter only keeps restaurants Google explicitly tagged, so it shrinks the result set drastically — better to put the dietary term in the query and let semantic search handle it. |
+| `components/FilterPanel.jsx` | Shared wrapper around `DayTimePicker` + `LocationControls` + `DietaryFilter`. Used by both the Home filter accordion and the Results topbar drop-down. |
 | `components/InspireBuilder.jsx` | 4-question chip grid (cuisine / vibe / occasion / priority). Cuisine and vibe are static single-select; **occasion and priority are both *dynamic***, swapping their option lists based on the visit time slot from the filter (`breakfast` 6–11, `lunch` 11–16, `dinner` 16–23, `anytime` otherwise). E.g. breakfast surfaces `Solo breakfast` / `Quick bite` and `Good coffee` / `Good brunch`; dinner surfaces `Date night` / `Family dinner` / `Celebration` and `Great cocktails` / `Late night`. Occasion is single-select; priority is multi-select. A `useEffect` clears any occasion or priority picks that aren't valid for the new slot when the time changes, so stale selections never leak into the search. The priority `None` chip acts as a single-select escape hatch (clears the rest, and re-clicking it clears everything). Live-updates the query field via `buildQueryFromToggles` as chips toggle. Cancel restores the prior query; Search commits + triggers search. |
 | `components/ResultCard.jsx` | Hoverable, selectable ranked row. `selected` state uses a full 2-px accent outline (not a left stripe). |
-| `components/Icons.jsx` | Zero-dependency inline SVG icon components (Lucide-port). Exports `IconStar` / `Utensils` / `Service` (smile face) / `Clock` / `Dollar` / `Target` / `ArrowLeft` / `Github` / `Plus` / `Minus` / `Locate` / `Polygon` / `Rectangle` / `Viewport` / `Close` / `Search` / `Chevron*`. |
+| `components/Icons.jsx` | Zero-dependency inline SVG icon components (Lucide-port). Exports `IconStar` / `Utensils` / `Service` (smile face) / `Clock` / `Dollar` / `Target` / `ArrowLeft` / `Github` / `Plus` / `Minus` / `Locate` / `Polygon` / `Rectangle` / `Viewport` / `Close` / `Search` / `Chevron*` / `IconUndo`. Also re-exports a tiny `<MS name="…">` ligature wrapper for **Google Material Symbols Outlined** glyphs (sentiment faces, `concierge`, `restaurant`, etc.) loaded via Google Fonts. |
 | `components/HelpModal.jsx` | Full pipeline math: embeddings → PCA → clustering → ABSA → ranking. |
 | `components/AboutModal.jsx` | Team + project blurb + outlined GitHub button. Opens on clicking the Noble Jaguars pill on Home. |
 | `components/Spinner.jsx` | Full-overlay spinner for Results-page loading; `SpinnerInline` for CTA buttons. |
@@ -148,6 +151,7 @@ interaction.
 |---|---|
 | `hooks/useGeolocation.js` | `useGeolocation(enabled)` — gated by the `enabled` flag. Times Square fallback if the permission is denied or times out. No longer called on page mount or tab switch — only from the `Current Location` button in `MapInline`. |
 | `lib/queryBuilder.js` | `buildQueryFromToggles(t)` — client-side mirror of `src/10_query_construction.py` / `backend/query_builder.py`. Drives the live auto-fill in `InspireBuilder`. Joins multi-select `priority` (an array; `None` filtered out) with spaces; tolerates string/null shapes defensively. |
+| `lib/sentiment.js` | `sentimentName(scoreOnFiveScale)` — maps a 0–5 satisfaction score to a Google Material Symbols sentiment glyph name (`sentiment_extremely_dissatisfied` … `sentiment_very_satisfied`). Used by `Detail.jsx` (Satisfaction Score cells) and `ResultCard.jsx` (compact pill next to the score). Returns `null` when the score is null. |
 | `api/client.js` | Tiny `fetch` wrapper. `api.search / detail / reviews / browse / health`. Formats Pydantic 422 arrays into human-readable `field: msg; …` strings (not `[object Object]`). |
 
 ### Design system
@@ -156,8 +160,9 @@ interaction.
 - **Text**: `#0F0F0F` body; `#2a2826` muted-strong.
 - **Radius**: `--radius: 6px` (buttons, inputs, cards) and `--radius-lg: 8px` (panels, modals, sidebar, detail panel). Pills/chips are fully rounded (`999px`). **No intermediate radii.**
 - **Shadows**: `--shadow-sm / md / lg` tokens (`0 1px 2px` / `0 4px 10px` / `0 8px 24px` rgba black).
-- **Type**: Inter + JetBrains Mono; mono labels use 10–11 px with 1.6–2.2 px letter-spacing, all-caps.
+- **Type**: Inter (body / UI) + JetBrains Mono (numerics + labels) + **Fraunces** italic for the home-title hero question + **Material Symbols Outlined** for sentiment / concierge / restaurant glyphs. Mono labels use 10–11 px with 1.6–2.2 px letter-spacing, all-caps. All four font families load from Google Fonts in `index.html`.
 - **Map pins**: red teardrops for ranked results (top-5 numbered), small red teardrops for the browse clusters.
+- **Favicon**: Material Symbols `restaurant` glyph in accent red, served from `public/favicon.svg` and linked via `<link rel="icon" type="image/svg+xml">` in `index.html`.
 
 ### Responsive behaviour
 
@@ -177,6 +182,25 @@ VITE_MAPBOX_TOKEN=pk.eyJ1...your_token_here
 
 The token is read at build time by `MapView.jsx`. If absent, the app falls
 back to Carto Voyager OSM tiles so it still works without a token.
+
+### iCloud Drive watcher workaround
+
+If the project lives inside an iCloud Drive path (e.g. `~/Library/Mobile
+Documents/com~apple~CloudDocs/…`), iCloud periodically rewrites file
+metadata (atime/mtime) on the dev-server's config files even when their
+bytes don't change. Vite's chokidar watcher reads that as "config changed"
+→ restarts → races on rebinding port 5173 → browser starts seeing 504
+"Outdated Request" errors. `vite.config.js` defends against this with:
+
+```js
+strictPort: true,
+watch: { ignored: ['**/vite.config.js', '**/.env', '**/.env.*'] },
+```
+
+`strictPort` makes a failed rebind fail loudly instead of silently drifting
+to 5174/5175; `ignored` stops chokidar from triggering on the two files
+iCloud touches most often. Real source files (JSX/CSS) are still watched
+normally.
 
 ## Run
 
@@ -217,7 +241,7 @@ lsof -ti tcp:8000 tcp:5173 | xargs kill
 Artifacts produced by the offline pipeline must exist:
 
 - `data/processed/review-NYC-restaurant-filtered.parquet`
-- `data/processed/meta-NYC-restaurant.parquet` (with `aspect_*` columns — run `python src/8_ranking.py` to populate)
+- `data/processed/meta-NYC-restaurant.parquet` (with `aspect_food/service/price/wait_time` + `aspect_price_pct/wait_time_pct` columns — run `python src/8_ranking.py` to populate)
 - `results/pca/review_embeddings_pca.npy`, `results/pca/pca_model.pkl`
 - `results/clustering/cluster_centroids.npy`, `results/clustering/restaurant_clusters.csv`, `results/clustering/evaluation/cluster_summary.json`
 
@@ -230,8 +254,16 @@ produces these.
 curl -s http://127.0.0.1:8000/api/health
 curl -s -X POST http://127.0.0.1:8000/api/search -H 'Content-Type: application/json' \
   -d '{"query":"ramen","location":{"mode":"all"},"time":{"any_time":true},"limit":3}' \
-  | python -c "import sys,json; r=json.load(sys.stdin)['results'][0]; print({k:r[k] for k in ['name','final_score','aspect_food','aspect_service','aspect_price_blended','aspect_wait_time']})"
+  | python -c "import sys,json; r=json.load(sys.stdin)['results'][0]; print({k:r[k] for k in ['name','final_score','avg_similarity','aspect_food','aspect_service','aspect_price','aspect_price_pct','aspect_wait_time','aspect_wait_time_pct']})"
 ```
 
-Expected: the first result is a ramen place and all five aspect fields are
-floats in `[0, 1]`.
+Expected: the first result is a ramen place; aspect floats are in `[0, 1]`,
+percentile fields are integers in `[0, 100]`, and `avg_similarity` is the
+mean cosine of the top-k matched reviews. Quick second check for the
+dietary filter (should return only restaurants Google labels as Halal):
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/search -H 'Content-Type: application/json' \
+  -d '{"query":"lunch","location":{"mode":"all"},"time":{"any_time":true},"dietary":["halal"],"limit":3}' \
+  | python -c "import sys,json; r=json.load(sys.stdin); print(r['filtered_candidates'], 'survived; names:'); [print(' -',x['name']) for x in r['results']]"
+```
