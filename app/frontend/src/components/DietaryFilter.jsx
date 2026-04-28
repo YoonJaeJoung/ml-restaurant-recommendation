@@ -18,8 +18,9 @@ export default function DietaryFilter({ selected, onChange }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <span className="mono-label sublabel" style={{ marginBottom: 0 }}>Dietary preference</span>
+        <span className="experimental-tag">Experimental</span>
         <button
           type="button"
           className="info-btn"
@@ -39,7 +40,10 @@ export default function DietaryFilter({ selected, onChange }) {
       </div>
       {helpOpen && (
         <p className="mono-meta dietary-help">
-          The results will only include the restaurants labeled as Vegetarian or Halal by Google.
+          This filter only keeps restaurants Google has explicitly labeled as Vegetarian or Halal,
+          which dramatically shrinks the result set — most matching places will be filtered out.
+          For better coverage, just include &ldquo;vegetarian&rdquo; or &ldquo;halal&rdquo; in your
+          query instead and let the semantic search handle it.
         </p>
       )}
     </div>

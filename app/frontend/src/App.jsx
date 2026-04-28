@@ -166,10 +166,14 @@ export default function App() {
   }, [])
 
   const lastSearchScore = detailId && response
-    ? {
-        query: response.query_effective,
-        final_score: response.results.find(r => r.gmap_id === detailId)?.final_score,
-      }
+    ? (() => {
+        const row = response.results.find(r => r.gmap_id === detailId)
+        return {
+          query: response.query_effective,
+          final_score: row?.final_score,
+          avg_similarity: row?.avg_similarity,
+        }
+      })()
     : null
 
   // ── Topbar slots ──────────────────────────────────────────────────

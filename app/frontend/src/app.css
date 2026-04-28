@@ -165,22 +165,54 @@
   text-align: center;
 }
 .home-title {
-  font-size: 54px;
-  font-weight: 700;
-  line-height: 1.05;
-  letter-spacing: var(--track-display);
+  font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
+  font-weight: 500;
+  font-style: normal;          /* base = first line: upright */
+  line-height: 1.1;
+  letter-spacing: -0.4px;
   text-align: center;
-  margin: 0;
-  max-width: 760px;
+  margin: 0 auto;
+  max-width: 860px;
   color: var(--text);
+  font-variation-settings: '"opsz" 144, "SOFT" 50';
+}
+.home-title-line {
+  display: block;
+  text-wrap: balance;          /* balance any narrow-viewport wrap */
+}
+/* First line: smaller, declarative, fits on one line at desktop width. */
+.home-title-line:not(.accent) {
+  font-size: 34px;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: -0.4px;
+  white-space: nowrap;         /* never break mid-sentence on desktop */
+  overflow: hidden;
+  text-overflow: clip;
+}
+/* Second line: the warm, hero question — italic + accent red, larger. */
+.home-title-line.accent {
+  margin-top: 10px;
+  color: var(--accent);
+  font-style: italic;
+  font-size: 60px;
+  font-weight: 500;
+  letter-spacing: -1px;
+  line-height: 1.02;
 }
 .home-subtitle {
   color: var(--muted-strong);
-  font-size: 16px;
-  max-width: 560px;
+  font-size: 16.5px;
+  max-width: 760px;
   text-align: center;
-  line-height: 1.5;
-  margin: 14px auto 0;
+  line-height: 1.55;
+  margin: 18px auto 0;
+  font-weight: 400;
+  text-wrap: balance;
+}
+.home-subtitle strong {
+  color: var(--text);
+  font-weight: 600;
 }
 .panel {
   background: var(--surface);
@@ -700,13 +732,29 @@
 }
 .dietary-help {
   margin-top: 10px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: var(--accent-bg);
   border-radius: var(--radius);
   font-style: italic;
   color: var(--text);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* Small "Experimental" badge next to filter labels. */
+.experimental-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  line-height: 1.4;
 }
 
 .result-list { padding-left: 0; }
@@ -756,17 +804,18 @@
   flex-wrap: wrap;
 }
 .result-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
-.similarity-bar {
-  display: block;
-  height: 1.5px;
-  background: var(--accent);
-  margin-top: 6px;
+.result-score .sentiment-glyph {
+  color: var(--accent);
+  font-size: 16px;
 }
 
 /* Loading spinner overlay */
@@ -928,10 +977,6 @@
   color: var(--muted-strong);
 }
 .score-cell-head .mono-label { color: inherit; }
-.score-cell-head .sentiment-glyph {
-  color: var(--accent);
-  margin-right: 2px;
-}
 .material-symbols-outlined {
   display: inline-flex;
   align-items: center;
@@ -939,6 +984,9 @@
   user-select: none;
 }
 .score-cell .value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 26px;
   font-weight: 700;
   letter-spacing: -0.6px;
@@ -946,11 +994,22 @@
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
+.score-cell .value .sentiment-glyph {
+  color: var(--accent);
+  font-size: 26px;
+  flex-shrink: 0;
+}
 .score-cell .value .out-of {
   font-size: 14px;
   font-weight: 500;
   color: var(--muted);
-  margin-left: 2px;
+  margin-left: -4px;
+}
+.aspects-intro {
+  font-style: italic;
+  color: var(--muted-strong);
+  font-size: 13px;
+  margin: 18px 0 10px;
 }
 .score-cell .bar {
   height: 3px;
@@ -1172,7 +1231,16 @@
 
 /* ── MOBILE (<=820px) ─────────────────────────────────────────────────── */
 @media (max-width: 820px) {
-  .home-title { font-size: 34px; letter-spacing: -0.6px; }
+  .home-title-line:not(.accent) {
+    font-size: 18px;
+    white-space: normal;       /* allow wrap on phones */
+    letter-spacing: -0.2px;
+  }
+  .home-title-line.accent {
+    font-size: 34px;
+    letter-spacing: -0.5px;
+    margin-top: 6px;
+  }
   .home-subtitle { font-size: 14px; }
   .home-wrap { padding: 32px 14px 120px; gap: 14px; }
   .home-title-block { margin-top: 48px; }

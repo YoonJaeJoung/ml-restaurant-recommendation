@@ -74,10 +74,14 @@ export default function Home({ searchState, setSearchState, onSearch, onBrowseAl
   return (
     <div className="home-wrap">
       <div className="home-title-block">
-        <h1 className="home-title">Find Your Next Favorite Restaurant in NYC</h1>
+        <h1 className="home-title">
+          <span className="home-title-line">Find your next favorite restaurant in NYC.</span>
+          <span className="home-title-line accent">What are you in the mood for?</span>
+        </h1>
         <p className="home-subtitle">
-          Tell us what you want. We&apos;ll search 2.1M reviews across 19,500 NYC restaurants,
-          weigh what you care about, and rank the best matches.
+          No more endless scrolling through Google Maps reviews. Be picky, be vague — either works.
+          We&apos;ll dig through <strong>2.1M reviews</strong> from <strong>19,500 NYC spots</strong>{' '}
+          and surface the ones that actually fit.
         </p>
       </div>
 

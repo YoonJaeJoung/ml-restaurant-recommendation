@@ -85,6 +85,11 @@ class RestaurantSummary(BaseModel):
     longitude: Optional[float] = None
     final_score: float
     rank: int
+    # Mean cosine similarity (in PCA space) of the top-k reviews aggregated
+    # to this restaurant. Reflects how semantically close this place is to
+    # the query — independent of the rating/ABSA/popularity blend that drives
+    # final_score. Surfaced in the UI as "% Match".
+    avg_similarity: Optional[float] = None
     # ABSA aspect scores (precomputed in the meta parquet; used by the
     # Results sidebar to sort client-side without extra requests).
     aspect_food: Optional[float] = None

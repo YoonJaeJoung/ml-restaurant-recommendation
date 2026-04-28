@@ -258,7 +258,9 @@ TF-IDF hyperparameters (optimized through systematic evaluation):
 | `ngram_range` | (1, 2) | Capture phrases like "fried chicken", "bubble tea" |
 | `stop_words` | English + custom | Remove generic words: good, great, nice, delicious, amazing, excellent, bad, food, place, restaurant, came, got, went, time, really, just, ordered, staff, service, definitely |
 
-Both feature sets are L2-normalized and concatenated, then reduced to **100 dimensions via PCA** before clustering.
+Both feature sets are L2-normalized and concatenated, giving a **1268-dim combined vector** per restaurant (768 meta + 500 TF-IDF), and KMeans is fit **directly on those 1268 dimensions** — no PCA reduction. Each block is independently L2-normed before concatenation so the meta and TF-IDF sides contribute equal mass to the cluster geometry.
+
+> **Note — why no PCA?** A `_pca` variant (`src/6a_clustering_pca.py`) exists that reduces the combined vector to 100 components before clustering. We deliberately use the full-dimensional version (`src/6b_clustering_full.py`) in production: clustering runs once offline, so fit-time speed doesn't matter, and clustering at full dimension preserves *all* of the rich 768-dim semantic detail from `nomic-embed-text-v1.5` plus *every* TF-IDF n-gram, rather than letting PCA collapse them into a smaller mixed basis. The `_pca` script is kept for reference / ablations only.
 
 ### Experiment & Model Selection
 
@@ -271,19 +273,28 @@ We ran a full grid search across 4 schemes × 9 k values:
 
 | Scheme | Best k | Silhouette Score |
 |---|---|---|
-| meta+kmeans | 40 | 0.1128 |
-| meta+gmm | 50 | 0.0985 |
-| combined+gmm | 50 | 0.2241 |
-| **combined+kmeans** | **50** | **0.2691** |
+| meta+kmeans | 50 | 0.1212 |
+| meta+gmm | 50 | 0.1020 |
+| combined+gmm | 50 | 0.1970 |
+| **combined+kmeans** | **50** | **0.2782** |
+
+(Full sweep results in `results/clustering/evaluation/clustering_scores.csv`; silhouette is monotonically increasing with k for all four schemes within the swept range, with the gain flattening past k=30.)
 
 **Selected model: combined+kmeans, k=50**
-- Silhouette score: **0.2691** (+82% vs initial TF-IDF parameters)
-- Optimized TF-IDF parameters significantly improved cluster quality by removing generic evaluation words and enabling bigram features
+- Silhouette score: **0.2782** — more than **2× the meta-only baseline** (0.1212), confirming TF-IDF over per-restaurant review text contributes real geometric structure.
+- Optimized TF-IDF parameters (`max_features=500`, `min_df=5`, `max_df=0.3`, `ngram_range=(1,2)`, custom stop-words) significantly improved cluster quality over an unfiltered baseline by removing generic evaluation words and enabling bigram features.
+- k=50 also gives the smallest top-5 candidate pool (highest expected speedup at retrieval time — see "How Clustering Enables Efficient Search" below).
 
 ### Running Clustering
 ```bash
-python src/6_clustering.py
+# Production clustering: full-dim (no PCA), writes restaurant_clusters.csv + cluster_centroids.npy
+python src/6b_clustering_full.py
+
+# Evaluation pass: silhouette scores, wordclouds, cluster summary, UMAP comparison
+python src/6c_clustering_evaluation.py
 ```
+
+> The `_pca` ablation (`src/6a_clustering_pca.py`) can be run with the same command pattern, but its outputs are not used by the production search engine — see the note above.
 
 ### Output Files
 
@@ -301,7 +312,23 @@ All secondary clustering artifacts are saved to `results/clustering/evaluation/`
 
 ### How Clustering Enables Efficient Search
 
-At query time, the user's input is first matched to its nearest cluster centroid (using `cluster_centroids.npy`), then similarity search is conducted **only within that cluster** — reducing the search space by ~50× compared to full-corpus search.
+At query time, the user's input is first matched to its top-5 nearest cluster centroids (using `cluster_centroids.npy`), then review-level similarity search is conducted **only within those 5 clusters**. Final relevance is decided at this second stage by review-level cosine in the 128-dim PCA space; the cluster step is purely a coarse pre-filter to narrow what stage 2 has to score.
+
+The actual speedup is **review-bound, not restaurant-bound** — stage 2's cost scales with the number of *review embeddings* it has to score, and clusters are heavily imbalanced in review count (per-cluster reviews range from ~6k to ~124k; mean ~43k, std ~27k across the 50 clusters). Concrete bounds for top-5 routing of 50 clusters out of 2.16M total reviews:
+
+| Top-5 selection | Review pool | Speedup vs full-corpus |
+|---|---|---|
+| Smallest clusters (best case) | ~59k | **~36×** |
+| Median-sized clusters | ~187k | **~11×** |
+| Largest clusters (worst case) | ~546k | **~4×** |
+
+Typical real queries land near the median (~10–12× speedup), but a query that matches a single high-traffic cluster (e.g. generic "good food") can drop to ~4×, while a niche query (e.g. "Tibetan momos") can push past 30×.
+
+> **Note — deliberate clustering/routing space mismatch (intended).**
+> KMeans is fit in the **1268-dim `[meta_emb ‖ tfidf]`** space (each block L2-normalized, equal weight) so that *both* metadata and review vocabulary contribute to the partition. The centroids persisted in `cluster_centroids.npy`, however, are the **mean of the 768-dim meta embeddings** of each cluster's restaurants — the TF-IDF half is intentionally dropped at routing time. The reasoning:
+> 1. **Clustering's only job here is retrieval-time reduction**, not exact partition reproduction. Top-5 of 50 clusters is a coarse, robust pre-filter; we do not need the routing centroid to recover the exact KMeans assignment.
+> 2. **Running the fitted `TfidfVectorizer` on a user query is unreliable.** Queries are short (typically ≤10 tokens, often 3–5), so the resulting TF-IDF vector is extremely sparse, dominated by a handful of terms (or empty if the query uses out-of-vocabulary words), and adds noise rather than signal — even though it was useful at fit time when each "document" was a concatenation of all of a restaurant's reviews.
+> 3. **Meta embeddings match the query register.** `name + category + description` is short and abstract, the same shape as a typed query, so cosine against meta centroids is a clean signal. The TF-IDF side still earned its keep at fit time by sharpening cluster boundaries (`combined+kmeans` silhouette 0.28 vs `meta+kmeans` 0.12 at K=50 — see `clustering_scores.csv`); we just don't ask it to handle queries it wasn't designed for.
 
 ## Semantic Search (Cluster-Based)
 

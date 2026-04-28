@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import MapView       from '../components/MapView.jsx'
 import ResultCard    from '../components/ResultCard.jsx'
 import Spinner       from '../components/Spinner.jsx'
@@ -18,10 +18,19 @@ const ASPECT_SORTS = [
 ]
 
 const SORT_LABELS = {
-  overall: 'Overall Ranking',
+  overall: 'Overall Satisfaction Score',
   food:    'Food',
   service: 'Service',
   wait:    'Wait',
+  price:   'Price',
+}
+
+// When the user re-sorts by an aspect, the headline expands the sort key into
+// a fuller phrase. Wait expands to "Wait Time" so it reads naturally.
+const ASPECT_HEADLINE_NAME = {
+  food:    'Food',
+  service: 'Service',
+  wait:    'Wait Time',
   price:   'Price',
 }
 
@@ -34,6 +43,16 @@ export default function Results({
   const [hoveredId, setHoveredId] = useState(null)
   const [sheetExpanded, setSheetExpanded] = useState(true)
   const [sortKey, setSortKey] = useState('overall')
+
+  // gmap_id → DOM node, populated as ResultCards mount. Used to scroll the
+  // sidebar to the matching card when a marker is clicked on the map.
+  const cardRefs = useRef(new Map())
+
+  useEffect(() => {
+    if (!selectedId) return
+    const el = cardRefs.current.get(selectedId)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [selectedId])
 
   const rawResults = response?.results || []
 
@@ -52,7 +71,6 @@ export default function Results({
     })
   }, [rawResults, sortKey])
 
-  const maxScore = rawResults[0]?.final_score ?? 1
   const center = searchState.pin
   const filteredOut = response
     ? Math.max(0, response.total_candidates - response.filtered_candidates)
@@ -82,8 +100,12 @@ export default function Results({
           <div className="sidebar-sticky-head">
             <div className="results-headline">
               <span className="results-headline-main">
-                Top {rawResults.length} Results Sorted by{' '}
-                <strong>{SORT_LABELS[sortKey] || 'Overall Ranking'}</strong>.
+                Top {rawResults.length} Results{' '}
+                {sortKey === 'overall' ? (
+                  <>Sorted by <strong>Overall Satisfaction Score</strong>.</>
+                ) : (
+                  <>resorted based on <strong>{ASPECT_HEADLINE_NAME[sortKey] || SORT_LABELS[sortKey]}</strong> satisfaction.</>
+                )}
               </span>
               {filteredOut > 0 && (
                 <span
@@ -137,15 +159,21 @@ export default function Results({
           {response && !loading && (
             <div className="result-list">
               {results.map((r) => (
-                <ResultCard
+                <div
                   key={r.gmap_id}
-                  r={r}
-                  hovered={hoveredId === r.gmap_id}
-                  selected={selectedId === r.gmap_id}
-                  onHover={setHoveredId}
-                  onClick={() => onSelectResult?.(r.gmap_id)}
-                  maxScore={maxScore}
-                />
+                  ref={(el) => {
+                    if (el) cardRefs.current.set(r.gmap_id, el)
+                    else    cardRefs.current.delete(r.gmap_id)
+                  }}
+                >
+                  <ResultCard
+                    r={r}
+                    hovered={hoveredId === r.gmap_id}
+                    selected={selectedId === r.gmap_id}
+                    onHover={setHoveredId}
+                    onClick={() => onSelectResult?.(r.gmap_id)}
+                  />
+                </div>
               ))}
               {results.length === 0 && (
                 <div style={{ padding: 28, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>

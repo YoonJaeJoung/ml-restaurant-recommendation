@@ -83,6 +83,7 @@ def _summary_rows(df: pd.DataFrame, limit: int) -> list[RestaurantSummary]:
             longitude=_float_or_none(r.get("longitude")),
             final_score=float(r["final_score"]),
             rank=rank,
+            avg_similarity=_float_or_none(r.get("avg_similarity")),
             aspect_food=food,
             aspect_service=service,
             aspect_price=price_r,

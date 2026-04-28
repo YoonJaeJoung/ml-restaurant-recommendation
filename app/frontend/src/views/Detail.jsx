@@ -1,22 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client.js'
 import {
-  IconTarget, IconUtensils, IconClock, IconDollar, MS,
+  IconUtensils, IconClock, IconDollar, MS,
 } from '../components/Icons.jsx'
-
-// Map a 1-5 rounded score to a Material Symbols sentiment glyph name.
-const SENTIMENT_BY_ROUND = {
-  1: 'sentiment_extremely_dissatisfied',
-  2: 'sentiment_frustrated',
-  3: 'sentiment_neutral',
-  4: 'sentiment_satisfied',
-  5: 'sentiment_very_satisfied',
-}
-function sentimentName(scoreFive) {
-  if (scoreFive == null) return null
-  const r = Math.max(1, Math.min(5, Math.round(scoreFive)))
-  return SENTIMENT_BY_ROUND[r]
-}
+import { sentimentName } from '../lib/sentiment.js'
 
 const WEEKDAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -134,8 +121,12 @@ export default function Detail({ gmapId, lastSearchScore, onBack, variant = 'pag
 
   const aspects = detail.aspects || {}
 
-  // Overall match: percentage. Individual aspects: out of 5 with sentiment glyph.
-  const overallPct = lastSearchScore?.final_score != null ? (lastSearchScore.final_score * 100) : null
+  // Overall and individual aspects share the same /5 scale + sentiment glyph.
+  const overallFive = lastSearchScore?.final_score != null ? lastSearchScore.final_score * 5 : null
+  const overallSentiment = sentimentName(overallFive)
+  const matchPct = lastSearchScore?.avg_similarity != null
+    ? Math.round(lastSearchScore.avg_similarity * 100)
+    : null
   const toFive = (v) => (v == null ? null : v * 5)
 
   // Price uses RAW `aspect_price` (not blended). The 50/50 blend is only used
@@ -161,10 +152,13 @@ export default function Detail({ gmapId, lastSearchScore, onBack, variant = 'pag
             {detail.borough && <span className="rating-star">{detail.borough}</span>}
             {detail.address && <><span className="bullet">·</span><span>{detail.address}</span></>}
           </div>
-          {(detail.avg_rating != null || detail.price) && (
+          {(detail.avg_rating != null || detail.price || matchPct != null) && (
             <div className="detail-header-meta secondary">
               {detail.avg_rating != null && <span>★ {detail.avg_rating.toFixed(1)}</span>}
               {detail.price && <span className="mono-meta" style={{ fontSize: 13 }}>{detail.price}</span>}
+              {matchPct != null && (
+                <span className="mono-meta" style={{ fontSize: 13 }}>{matchPct}% Match</span>
+              )}
             </div>
           )}
           {detail.url && (
@@ -184,30 +178,38 @@ export default function Detail({ gmapId, lastSearchScore, onBack, variant = 'pag
       <div className="detail-tabbody">
         {tab === 'score' && (
           <>
-            {overallPct != null && (
+            {overallFive != null && (
               <div className="scores-grid overall">
                 <div className="score-cell overall-cell">
                   <div className="score-cell-head">
-                    <IconTarget size={14} />
-                    <span className="mono-label">Overall Matching Score</span>
+                    <span className="mono-label">Overall Satisfaction Score</span>
                   </div>
-                  <div className="value">{overallPct.toFixed(0)}<span className="out-of">%</span></div>
-                  <div className="bar" style={{ width: `${Math.max(0, Math.min(100, overallPct))}%` }} />
+                  <div className="value">
+                    {overallSentiment && (
+                      <MS name={overallSentiment} size={22} className="sentiment-glyph" />
+                    )}
+                    <span>{overallFive.toFixed(1)}</span>
+                    <span className="out-of">/5</span>
+                  </div>
+                  <div className="bar" style={{ width: `${Math.max(0, Math.min(5, overallFive)) * 20}%` }} />
                 </div>
               </div>
             )}
+            <div className="aspects-intro">Google Map Users are saying that...</div>
             <div className="scores-grid aspects">
               {aspectCells.map(({ label, Icon, MSName, v, pct }) => {
                 const sentiment = sentimentName(v)
                 return (
                   <div key={label} className="score-cell">
                     <div className="score-cell-head">
-                      {sentiment && <MS name={sentiment} size={20} className="sentiment-glyph" />}
                       {Icon ? <Icon size={14} /> : <MS name={MSName} size={16} />}
                       <span className="mono-label">{label}</span>
                     </div>
                     <div className="value">
-                      {v == null ? '—' : <>{v.toFixed(1)}<span className="out-of">/5</span></>}
+                      {sentiment && <MS name={sentiment} size={20} className="sentiment-glyph" />}
+                      {v == null
+                        ? <span>—</span>
+                        : <><span>{v.toFixed(1)}</span><span className="out-of">/5</span></>}
                     </div>
                     <div className="bar" style={{ width: `${Math.max(0, Math.min(5, v || 0)) * 20}%` }} />
                     {pct != null && (

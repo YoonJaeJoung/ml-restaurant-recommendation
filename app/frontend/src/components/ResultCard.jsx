@@ -1,6 +1,11 @@
-export default function ResultCard({ r, hovered, selected, onHover, onClick, maxScore }) {
+import { MS } from './Icons.jsx'
+import { sentimentName } from '../lib/sentiment.js'
+
+export default function ResultCard({ r, hovered, selected, onHover, onClick }) {
   const isTop5 = r.rank <= 5
-  const pct = maxScore > 0 ? Math.min(100, (r.final_score / maxScore) * 100) : 0
+  const scoreFive = r.final_score != null ? r.final_score * 5 : null
+  const sentiment = sentimentName(scoreFive)
+  const matchPct = r.avg_similarity != null ? Math.round(r.avg_similarity * 100) : null
 
   return (
     <div
@@ -29,12 +34,17 @@ export default function ResultCard({ r, hovered, selected, onHover, onClick, max
             </>
           )}
           <span style={{ flex: 1 }} />
-          <span className="result-score">{(r.final_score * 100).toFixed(0)}%</span>
+          <span className="result-score">
+            {sentiment && <MS name={sentiment} size={16} className="sentiment-glyph" />}
+            {scoreFive != null && <span>{scoreFive.toFixed(1)}</span>}
+            {matchPct != null && (
+              <>
+                <span style={{ opacity: 0.4 }}>·</span>
+                <span>{matchPct}% Match</span>
+              </>
+            )}
+          </span>
         </div>
-        <span
-          className="similarity-bar"
-          style={{ width: `${pct}%` }}
-        />
       </div>
     </div>
   )
